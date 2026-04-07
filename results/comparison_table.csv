@@ -1,0 +1,4 @@
+Metric,Baseline LSTM,PIML LSTM
+MAE (seconds),0.596,0.7581
+RMSE (seconds),1.0786,1.1722
+Violation Rate (%),52.05,47.95

@@ -1,0 +1,7 @@
+{
+  "model": "Baseline LSTM",
+  "mae_seconds": 0.596,
+  "val_sequences": 666,
+  "epochs": 20,
+  "notes": "Baseline before physics constraints"
+}
