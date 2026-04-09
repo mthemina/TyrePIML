@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TyrePIML — F1 Strategy Intelligence</title>
+   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+        background: #0F0F0F;
+        color: #F0EDE4;
+        font-family: 'Segoe UI', sans-serif;
+        min-height: 100vh;
+    }
+
+    header {
+        background: #1a1f0f;
+        border-bottom: 2px solid #6B7C3F;
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+
+    header h1 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: 2px;
+        color: #6B7C3F;
+    }
+
+    header span {
+        font-size: 0.85rem;
+        color: #C9A84C;
+        opacity: 0.9;
+    }
+
+    .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 32px;
+    }
+
+    .controls {
+        background: #1E1E1E;
+        border-radius: 12px;
+        padding: 24px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 32px;
+        border: 1px solid #2a2a2a;
+    }
+
+    .control-group label {
+        display: block;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #C9A84C;
+        margin-bottom: 8px;
+    }
+
+    select, input {
+        width: 100%;
+        background: #2a2a2a;
+        border: 1px solid #3a3a3a;
+        color: #F0EDE4;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        outline: none;
+    }
+
+    select:focus, input:focus {
+        border-color: #6B7C3F;
+    }
+
+    .btn {
+        background: #6B7C3F;
+        color: #F0EDE4;
+        border: none;
+        padding: 12px 28px;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        align-self: end;
+        letter-spacing: 1px;
+    }
+
+    .btn:hover { background: #7d9149; }
+    .btn:disabled { background: #444; cursor: not-allowed; }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+    }
+
+    .card {
+        background: #1E1E1E;
+        border-radius: 12px;
+        padding: 24px;
+        border: 1px solid #2a2a2a;
+    }
+
+    .card h2 {
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #6B7C3F;
+        margin-bottom: 16px;
+        border-bottom: 1px solid #2a2a2a;
+        padding-bottom: 12px;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+    }
+
+    th {
+        text-align: left;
+        padding: 8px 10px;
+        color: #C9A84C;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid #2a2a2a;
+    }
+
+    td {
+        padding: 10px 10px;
+        border-bottom: 1px solid #1f1f1f;
+        color: #F0EDE4;
+    }
+
+    tr:hover td { background: #252525; }
+
+    .urgency-HIGH { color: #8B2020; font-weight: 700; }
+    .urgency-MEDIUM { color: #C9A84C; font-weight: 600; }
+    .urgency-LOW { color: #6B7C3F; }
+
+    .compound-SOFT { 
+        background: #7a1f1f; color: #F0EDE4;
+        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+    }
+    .compound-MEDIUM { 
+        background: #C9A84C; color: #0F0F0F;
+        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+        font-weight: 600;
+    }
+    .compound-HARD { 
+        background: #3a3a3a; color: #F0EDE4;
+        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #6B7C3F;
+        display: none;
+        letter-spacing: 1px;
+    }
+
+    .error {
+        background: #1a0a0a;
+        border: 1px solid #8B2020;
+        border-radius: 8px;
+        padding: 16px;
+        color: #cc4444;
+        display: none;
+    }
+
+    .status-bar {
+        background: #1a1f0f;
+        border-radius: 8px;
+        padding: 12px 20px;
+        margin-bottom: 24px;
+        font-size: 0.85rem;
+        color: #888;
+        border: 1px solid #2a3a1a;
+    }
+
+    .status-bar span { color: #C9A84C; font-weight: 600; }
+</style> 
+</head>
+<body>
+
+<header>
+    <h1>🏎️ TyrePIML</h1>
+    <span>F1 Race Strategy Intelligence — Physics-Informed ML</span>
+</header>
+
+<div class="container">
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Race</label>
+            <select id="raceSelect" onchange="loadDrivers()">
+                {% for race in races %}
+                <option value="{{ race }}">{{ race.replace('_', ' ') }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Lap Number</label>
+            <input type="number" id="lapInput" value="15" min="5" max="50">
+        </div>
+        <div class="control-group">
+            <label>Focus Driver</label>
+            <select id="driverSelect">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Planned Pit Lap</label>
+            <input type="number" id="pitLapInput" value="18" min="1" max="70">
+        </div>
+        <div class="control-group">
+            <button class="btn" onclick="analyze()" id="analyzeBtn">
+                Analyze
+            </button>
+        </div>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        Select a race and lap, then click Analyze.
+    </div>
+
+    <div class="error" id="errorBox"></div>
+    <div class="loading" id="loadingBox">⏳ Running strategy analysis...</div>
+
+    <div class="grid" id="resultsGrid" style="display:none">
+        <div class="card">
+            <h2>🔍 Tyre State — All Drivers</h2>
+            <table id="tyreTable">
+                <thead>
+                    <tr>
+                        <th>Driver</th>
+                        <th>Compound</th>
+                        <th>Age</th>
+                        <th>Avg Time</th>
+                        <th>Cliff</th>
+                        <th>Urgency</th>
+                    </tr>
+                </thead>
+                <tbody id="tyreBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>⚔️ Rival Response Analysis</h2>
+            <table id="rivalTable">
+                <thead>
+                    <tr>
+                        <th>Rival</th>
+                        <th>Cliff</th>
+                        <th>Urgency</th>
+                        <th>Can Cover</th>
+                        <th>Expected Response</th>
+                    </tr>
+                </thead>
+                <tbody id="rivalBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    async function loadDrivers() {
+        const race = document.getElementById('raceSelect').value;
+        const res = await fetch(`/api/drivers/${race}`);
+        const data = await res.json();
+        const sel = document.getElementById('driverSelect');
+        sel.innerHTML = data.drivers.map(d => 
+            `<option value="${d}">${d}</option>`
+        ).join('');
+    }
+
+    async function analyze() {
+        const race = document.getElementById('raceSelect').value;
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+        const pitLap = document.getElementById('pitLapInput').value;
+
+        document.getElementById('loadingBox').style.display = 'block';
+        document.getElementById('resultsGrid').style.display = 'none';
+        document.getElementById('errorBox').style.display = 'none';
+        document.getElementById('analyzeBtn').disabled = true;
+
+        try {
+            // Fetch tyre analysis
+            const analysisRes = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({race, lap})
+            });
+            const analysisData = await analysisRes.json();
+
+            // Fetch rival response
+            const strategyRes = await fetch('/api/strategy', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({race, lap, driver, pit_lap: pitLap})
+            });
+            const strategyData = await strategyRes.json();
+
+            // Render tyre table
+            const tyreBody = document.getElementById('tyreBody');
+            tyreBody.innerHTML = analysisData.drivers.map(d => `
+                <tr>
+                    <td><strong>${d.Driver}</strong></td>
+                    <td><span class="compound-${d.Compound}">${d.Compound}</span></td>
+                    <td>${d.TyreLife}</td>
+                    <td>${d.AvgLapTime}s</td>
+                    <td>${d.PredictedCliff}</td>
+                    <td><span class="urgency-${d.Urgency}">${d.Urgency}</span></td>
+                </tr>
+            `).join('');
+
+            // Render rival table
+            const rivalBody = document.getElementById('rivalBody');
+            rivalBody.innerHTML = strategyData.rival_responses.map(r => `
+                <tr>
+                    <td><strong>${r.Rival}</strong></td>
+                    <td>${r.RivalCliff}</td>
+                    <td><span class="urgency-${r.RivalUrgency}">${r.RivalUrgency}</span></td>
+                    <td>${r.CanCover ? '✅' : '❌'}</td>
+                    <td>${r.ExpectedResponse}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('statusBar').innerHTML = 
+                `Showing analysis for <span>${race.replace('_',' ')}</span> 
+                at <span>Lap ${lap}</span> — 
+                Focus driver: <span>${driver}</span> 
+                planning pit at <span>Lap ${pitLap}</span>`;
+
+            document.getElementById('resultsGrid').style.display = 'grid';
+
+        } catch(err) {
+            document.getElementById('errorBox').style.display = 'block';
+            document.getElementById('errorBox').textContent = 
+                'Error running analysis: ' + err.message;
+        }
+
+        document.getElementById('loadingBox').style.display = 'none';
+        document.getElementById('analyzeBtn').disabled = false;
+    }
+
+    // Load drivers on page load
+    loadDrivers();
+</script>
+
+</body>
+</html> 
