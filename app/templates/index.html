@@ -187,6 +187,17 @@
     }
 
     .status-bar span { color: #C9A84C; font-weight: 600; }
+
+    .optimal-pit-badge {
+        display: inline-block;
+        background: #C9A84C;
+        color: #0F0F0F;
+        font-weight: 700;
+        font-size: 1.1rem;
+        padding: 4px 14px;
+        border-radius: 6px;
+        margin-left: 8px;
+    }
 </style> 
 </head>
 <body>
@@ -208,9 +219,11 @@
             </select>
         </div>
         <div class="control-group">
-            <label>Lap Number</label>
-            <input type="number" id="lapInput" value="15" min="5" max="50">
-        </div>
+            <label>Lap Number — <span id="lapDisplay" style="color:#6B7C3F">15</span></label>
+            <input type="range" id="lapInput" value="15" min="5" max="53"
+                oninput="document.getElementById('lapDisplay').textContent = this.value"
+                style="padding: 6px 0; cursor: pointer;">
+        </div> 
         <div class="control-group">
             <label>Focus Driver</label>
             <select id="driverSelect">
@@ -270,9 +283,114 @@
         </div>
     </div>
 
+    <!-- Pit Window Chart -->
+    <div class="card" id="pitChartCard" style="margin-top: 24px; display:none">
+        <h2>📊 Pit Window Analysis — <span id="pitChartDriver"></span>
+            <span class="optimal-pit-badge" id="optimalPitLap"></span>
+        </h2>
+        <div style="text-align:center; padding: 16px 0;">
+            <img id="pitChartImg" src="" style="max-width:100%; border-radius:8px;">
+        </div>
+        <div style="text-align:center; margin-top:4px;">
+            <span style="color:#888; font-size:0.82rem;">
+                Green bars = time saved by pitting &nbsp;|&nbsp; Red bars = time lost by waiting
+            </span>
+        </div>
+    </div>
+
+    <!-- Strategy Map -->
+    <div class="card" id="strategyMapCard" style="margin-top: 24px; display:none">
+        <h2>🗺️ Race Strategy Map — <span id="strategyMapRace"></span></h2>
+        <div style="text-align:center; padding: 16px 0;">
+            <img id="strategyMapImg" src="" style="max-width:100%; border-radius:8px;">
+        </div>
+        <div style="text-align:center; margin-top:4px;">
+            <span style="color:#888; font-size:0.82rem;">
+                S = Soft &nbsp;|&nbsp; M = Medium &nbsp;|&nbsp; H = Hard
+            </span>
+        </div>
+    </div> 
+    <!-- Undercut / Overcut Panel -->
+    <div class="card" id="undercutCard" style="margin-top: 24px; display:none">
+        <h2>⚡ Undercut / Overcut Simulator — <span id="undercutDriver"></span></h2>
+        <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
+            <span style="color:#888; font-size:0.85rem;">Assumed gap to rivals:</span>
+            <input type="number" id="gapInput" value="2.5" step="0.5" min="0" max="30"
+                style="width:80px; padding:6px 10px;">
+            <button class="btn" style="padding:8px 16px; font-size:0.85rem;"
+                onclick="loadUndercut()">Recalculate</button>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rival</th>
+                    <th>Undercut Works</th>
+                    <th>UC Final Gap</th>
+                    <th>Overcut Works</th>
+                    <th>OC Final Gap</th>
+                    <th>Recommendation</th>
+                </tr>
+            </thead>
+            <tbody id="undercutBody"></tbody>
+        </table>
+    </div> 
+
 </div>
 
 <script>
+    
+    async function loadUndercut() {
+        const race = document.getElementById('raceSelect').value;
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+        const gap = document.getElementById('gapInput').value;
+
+        const res = await fetch('/api/undercut', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race, lap, driver, gap})
+        });
+        const data = await res.json();
+
+        if (data.results) {
+            const body = document.getElementById('undercutBody');
+            body.innerHTML = data.results.map(r => `
+                <tr>
+                    <td><strong>${r.Rival}</strong></td>
+                    <td>${r.UnderCutWorks ? '✅' : '❌'}</td>
+                    <td style="color:${r.UnderCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">
+                        ${r.UnderCutFinalGap}s</td>
+                    <td>${r.OverCutWorks ? '✅' : '❌'}</td>
+                    <td style="color:${r.OverCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">
+                        ${r.OverCutFinalGap}s</td>
+                    <td><strong style="color:#C9A84C">${r.Recommendation}</strong></td>
+                </tr>
+            `).join('');
+
+            document.getElementById('undercutDriver').textContent = driver;
+            document.getElementById('undercutCard').style.display = 'block';
+        }
+    } 
+
+    async function loadStrategyMap() {
+        const race = document.getElementById('raceSelect').value;
+
+        const res = await fetch('/api/strategy_map', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race})
+        });
+        const data = await res.json();
+
+        if (data.chart) {
+            document.getElementById('strategyMapImg').src =
+                'data:image/png;base64,' + data.chart;
+            document.getElementById('strategyMapRace').textContent = 
+                race.replace('_', ' ');
+            document.getElementById('strategyMapCard').style.display = 'block';
+        }
+    } 
+
     async function loadDrivers() {
         const race = document.getElementById('raceSelect').value;
         const res = await fetch(`/api/drivers/${race}`);
@@ -281,6 +399,36 @@
         sel.innerHTML = data.drivers.map(d => 
             `<option value="${d}">${d}</option>`
         ).join('');
+
+        // Reset all panels when race changes
+        document.getElementById('resultsGrid').style.display = 'none';
+        document.getElementById('pitChartCard').style.display = 'none';
+        document.getElementById('strategyMapCard').style.display = 'none';
+        document.getElementById('undercutCard').style.display = 'none';
+        document.getElementById('statusBar').textContent = 
+            'Select a race and lap, then click Analyze.';
+    } 
+
+    async function loadPitChart() {
+        const race = document.getElementById('raceSelect').value;
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+
+        const res = await fetch('/api/pit_chart', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race, lap, driver})
+        });
+        const data = await res.json();
+
+        if (data.chart) {
+            document.getElementById('pitChartImg').src =
+                'data:image/png;base64,' + data.chart;
+            document.getElementById('pitChartDriver').textContent = driver;
+            document.getElementById('optimalPitLap').textContent =
+                data.optimal_pit ? 'Optimal: Lap ' + data.optimal_pit : 'N/A';
+            document.getElementById('pitChartCard').style.display = 'block';
+        }
     }
 
     async function analyze() {
@@ -291,7 +439,10 @@
 
         document.getElementById('loadingBox').style.display = 'block';
         document.getElementById('resultsGrid').style.display = 'none';
+        document.getElementById('pitChartCard').style.display = 'none';
         document.getElementById('errorBox').style.display = 'none';
+        document.getElementById('strategyMapCard').style.display = 'none'; 
+        document.getElementById('undercutCard').style.display = 'none'; 
         document.getElementById('analyzeBtn').disabled = true;
 
         try {
@@ -326,15 +477,24 @@
 
             // Render rival table
             const rivalBody = document.getElementById('rivalBody');
-            rivalBody.innerHTML = strategyData.rival_responses.map(r => `
-                <tr>
-                    <td><strong>${r.Rival}</strong></td>
-                    <td>${r.RivalCliff}</td>
-                    <td><span class="urgency-${r.RivalUrgency}">${r.RivalUrgency}</span></td>
-                    <td>${r.CanCover ? '✅' : '❌'}</td>
-                    <td>${r.ExpectedResponse}</td>
-                </tr>
-            `).join('');
+            if (strategyData.rival_responses && strategyData.rival_responses.length > 0) {
+                rivalBody.innerHTML = strategyData.rival_responses.map(r => `
+                    <tr>
+                        <td><strong>${r.Rival}</strong></td>
+                        <td>${r.RivalCliff}</td>
+                        <td><span class="urgency-${r.RivalUrgency}">${r.RivalUrgency}</span></td>
+                        <td>${r.CanCover ? '✅' : '❌'}</td>
+                        <td>${r.ExpectedResponse}</td>
+                    </tr>
+                `).join('');
+            } else {
+                rivalBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="color:#888; text-align:center; padding:20px;">
+                            No rival data available for this driver at this lap.
+                        </td>
+                    </tr>`;
+            } 
 
             document.getElementById('statusBar').innerHTML = 
                 `Showing analysis for <span>${race.replace('_',' ')}</span> 
@@ -343,6 +503,11 @@
                 planning pit at <span>Lap ${pitLap}</span>`;
 
             document.getElementById('resultsGrid').style.display = 'grid';
+
+            // Load pit chart
+            await loadPitChart();
+            await loadStrategyMap(); 
+            await loadUndercut(); 
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
