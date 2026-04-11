@@ -1,0 +1,38 @@
+[
+  {
+    "year": 2021,
+    "event": "Bahrain Grand Prix",
+    "laps": 916,
+    "status": "downloaded",
+    "weather": {
+      "air_temp_avg": 20.5,
+      "track_temp_avg": 27.6,
+      "humidity_avg": 54.5,
+      "rainfall": false
+    }
+  },
+  {
+    "year": 2021,
+    "event": "Emilia Romagna Grand Prix",
+    "laps": 531,
+    "status": "downloaded",
+    "weather": {
+      "air_temp_avg": 10.6,
+      "track_temp_avg": 16.8,
+      "humidity_avg": 69.5,
+      "rainfall": true
+    }
+  },
+  {
+    "year": 2021,
+    "event": "Portuguese Grand Prix",
+    "laps": 1107,
+    "status": "downloaded",
+    "weather": {
+      "air_temp_avg": 19.4,
+      "track_temp_avg": 39.0,
+      "humidity_avg": 39.4,
+      "rainfall": false
+    }
+  }
+]
