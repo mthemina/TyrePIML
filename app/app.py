@@ -3,6 +3,7 @@ import torch
 import pandas as pd
 import sys
 import os
+from src.uncertainty import predict_with_uncertainty, predict_cliff_with_uncertainty 
 
 # Make sure src is importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -15,19 +16,45 @@ from src.plot_pit_window import plot_pit_window
 
 app = Flask(__name__)
 
-# Load model once at startup
-model = TyreLSTM()
-model.load_state_dict(torch.load('models/tyre_lstm_piml_v1.pt'))
-model.eval()
+# Load models at startup
+print("Loading models...")
+
+# Main PIML model
+main_model = TyreLSTM(input_size=8, hidden_size=128, num_layers=2)
+main_model.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
+main_model.eval()
+model = main_model  # backwards compatibility alias 
+
+# Compound-specific models
+compound_models = {}
+for compound in ['soft', 'medium', 'hard']:
+    path = f'models/tyre_lstm_{compound}_v1.pt'
+    if os.path.exists(path):
+        m = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+        m.load_state_dict(torch.load(path))
+        m.eval()
+        compound_models[compound.upper()] = m
+        print(f"  Loaded {compound} model")
+
+print(f"Models ready. Compound models: {list(compound_models.keys())}")
+
+def get_model_for_driver(stint_df):
+    """Return the best model for a driver's current compound."""
+    compound = stint_df['Compound'].iloc[-1] if len(stint_df) > 0 else 'MEDIUM'
+    if compound in compound_models:
+        return compound_models[compound], 7
+    return main_model, 8 
 
 # Available races
-RACES = {
-    '2023_Monza': 'data/2023_Monza.csv',
-    '2023_Silverstone': 'data/2023_Silverstone.csv',
-    '2023_Spa': 'data/2023_Spa.csv',
-    '2022_Monza': 'data/2022_Monza.csv',
-    '2022_Silverstone': 'data/2022_Silverstone.csv',
-}
+RACES = {}
+
+# Auto-discover all CSV files in data/
+import glob
+for filepath in sorted(glob.glob('data/*.csv')):
+    filename = os.path.basename(filepath).replace('.csv', '')
+    RACES[filename] = filepath
+
+print(f"Loaded {len(RACES)} races") 
 
 @app.route('/')
 def index():
@@ -101,7 +128,7 @@ from src.dataset import denormalize, LAP_TIME_MIN, LAP_TIME_MAX
 
 @app.route('/api/pit_chart', methods=['POST'])
 def pit_chart():
-    """Generate pit window chart for a driver and return as base64 image."""
+    """Generate pit window chart with uncertainty bands."""
     data = request.json
     race_key = data.get('race')
     driver = data.get('driver')
@@ -125,19 +152,31 @@ def pit_chart():
     if len(stint_df) < 5:
         return jsonify({'error': 'Not enough data'}), 400
     
-    # Generate predictions
+    # Get model and uncertainty predictions
+    model, _ = get_model_for_driver(stint_df)
     n_future = 25
-    sequence = prepare_sequence(stint_df)
+    
+    # Uncertainty-aware predictions
+    uncertainty = predict_with_uncertainty(
+        model, stint_df, n_future=n_future, n_samples=30
+    )
+    cliff = predict_cliff_with_uncertainty(
+        model, stint_df, n_samples=30
+    )
+    
+    if uncertainty is None:
+        return jsonify({'error': 'Prediction failed'}), 500
+    
     current_lap_num = int(stint_df['TyreLife'].max())
-    future_preds = predict_future_laps(model, sequence, n_future)
-    future_seconds = [denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX) 
-                     for p in future_preds]
-    
-    # Cliff and pit window
-    cliff_mean, _, _, _ = detect_cliff_with_confidence(model, stint_df)
     current_avg = stint_df['LapTime'].mean()
+    future_laps = uncertainty['laps']
+    mean_preds = uncertainty['mean']
+    p25 = uncertainty['p25']
+    p75 = uncertainty['p75']
+    p10 = uncertainty['p10']
+    p90 = uncertainty['p90']
     
-    # Calculate pit deltas
+    # Calculate pit deltas using mean predictions
     pit_laps = list(range(current_lap_num + 1, current_lap_num + n_future))
     deltas = []
     for pit_lap in pit_laps:
@@ -146,7 +185,7 @@ def pit_chart():
         if laps_after <= 0:
             break
         degradation_cost = sum(
-            future_seconds[i] - current_avg 
+            mean_preds[i] - current_avg
             for i in range(laps_before, min(n_future, laps_before + laps_after))
         )
         delta = round(22.0 - degradation_cost, 3)
@@ -156,7 +195,7 @@ def pit_chart():
     optimal_pit = pit_laps[deltas.index(min(deltas))] if deltas else None
     
     # Plot
-    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), 
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 7),
                                     facecolor='#1E1E1E')
     
     for ax in [ax1, ax2]:
@@ -168,23 +207,31 @@ def pit_chart():
         for spine in ax.spines.values():
             spine.set_edgecolor('#3a3a3a')
     
-    # Top — lap time predictions
+    # Top — actual + prediction with uncertainty bands
     actual_laps = stint_df['TyreLife'].tolist()
-    future_laps = list(range(current_lap_num + 1, current_lap_num + n_future + 1))
+    ax1.plot(actual_laps, stint_df['LapTime'],
+             color='#F0EDE4', linewidth=2, label='Actual', zorder=5)
+    ax1.plot(future_laps, mean_preds,
+             color='#6B7C3F', linewidth=2,
+             linestyle='--', label='Predicted mean', zorder=5)
+    ax1.fill_between(future_laps, p10, p90,
+                    alpha=0.2, color='#6B7C3F', label='80% confidence')
+    ax1.fill_between(future_laps, p25, p75,
+                    alpha=0.4, color='#6B7C3F', label='50% confidence')
     
-    ax1.plot(actual_laps, stint_df['LapTime'], 
-             color='#F0EDE4', linewidth=2, label='Actual')
-    ax1.plot(future_laps, future_seconds, 
-             color='#6B7C3F', linewidth=2, linestyle='--', label='Predicted')
-    if cliff_mean:
-        ax1.axvline(x=cliff_mean, color='#8B2020', linewidth=1.5,
-                    linestyle=':', label=f'Cliff: lap {cliff_mean}')
+    if cliff:
+        ax1.axvline(x=cliff['mean'], color='#8B2020', linewidth=1.5,
+                    linestyle=':', label=f"Cliff: lap {cliff['mean']}")
+        if cliff['p25'] != cliff['p75']:
+            ax1.axvspan(cliff['p25'], cliff['p75'],
+                       alpha=0.15, color='#8B2020')
     if optimal_pit:
         ax1.axvline(x=optimal_pit, color='#C9A84C', linewidth=1.5,
                     linestyle=':', label=f'Optimal pit: lap {optimal_pit}')
+    
     ax1.set_ylabel('Lap Time (s)')
-    ax1.set_title(f'{driver} — Degradation Forecast')
-    ax1.legend(fontsize=8, facecolor='#2a2a2a', labelcolor='#F0EDE4')
+    ax1.set_title(f'{driver} — Degradation Forecast with Uncertainty')
+    ax1.legend(fontsize=7, facecolor='#2a2a2a', labelcolor='#F0EDE4')
     ax1.grid(True, alpha=0.15)
     
     # Bottom — pit delta bars
@@ -192,7 +239,8 @@ def pit_chart():
     ax2.bar(pit_laps, deltas, color=colors, alpha=0.85)
     ax2.axhline(y=0, color='#F0EDE4', linewidth=0.8)
     if optimal_pit:
-        ax2.axvline(x=optimal_pit, color='#C9A84C', linewidth=1.5, linestyle=':')
+        ax2.axvline(x=optimal_pit, color='#C9A84C', linewidth=1.5,
+                    linestyle=':')
     ax2.set_xlabel('Pit Lap')
     ax2.set_ylabel('Net Delta (s)')
     ax2.set_title('Pit Window — Green = Gain')
@@ -200,14 +248,18 @@ def pit_chart():
     
     plt.tight_layout()
     
-    # Convert to base64
     buf = io.BytesIO()
     plt.savefig(buf, format='png', facecolor='#1E1E1E', bbox_inches='tight')
     buf.seek(0)
     img_base64 = base64.b64encode(buf.read()).decode('utf-8')
     plt.close()
     
-    return jsonify({'chart': img_base64, 'optimal_pit': optimal_pit}) 
+    return jsonify({
+        'chart': img_base64,
+        'optimal_pit': optimal_pit,
+        'cliff_lap': cliff['mean'] if cliff else None,
+        'cliff_std': cliff['std'] if cliff else None
+    })
 
 @app.route('/api/strategy_map', methods=['POST'])
 def strategy_map():
