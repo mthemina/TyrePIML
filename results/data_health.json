@@ -1,7 +1,7 @@
 {
-  "total_races": 51,
-  "total_laps": 42436,
-  "weather_coverage": 46,
+  "total_races": 91,
+  "total_laps": 81300,
+  "weather_coverage": 81,
   "seasons": {
     "2018": {
       "races": 16,
@@ -12,25 +12,29 @@
       "laps": 18613
     },
     "2020": {
-      "races": 8,
-      "laps": 7388
+      "races": 16,
+      "laps": 14889
     },
     "2021": {
-      "races": 3,
-      "laps": 2554
+      "races": 13,
+      "laps": 13172
     },
     "2022": {
-      "races": 2,
-      "laps": 1531
+      "races": 4,
+      "laps": 3062
     },
     "2023": {
-      "races": 3,
-      "laps": 2979
+      "races": 7,
+      "laps": 6926
+    },
+    "2024": {
+      "races": 16,
+      "laps": 15267
     }
   },
   "compounds": {
-    "SOFT": 14590,
-    "MEDIUM": 16665,
-    "HARD": 11181
+    "SOFT": 20214,
+    "MEDIUM": 30269,
+    "HARD": 30817
   }
 }

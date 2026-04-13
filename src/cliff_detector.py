@@ -9,16 +9,37 @@ CLIFF_THRESHOLD = 1.5
 
 def prepare_sequence(stint_df, sequence_length=5):
     """Convert a stint dataframe into model input sequences."""
+    from src.track_profiles import get_track_profile
+    from src.dataset import (TEMP_MIN, TEMP_MAX, 
+                             ABRASIVENESS_MIN, ABRASIVENESS_MAX)
+    
+    # Get weather and track info if available
+    has_weather = 'track_temp_avg' in stint_df.columns
+    track_temp = float(stint_df['track_temp_avg'].iloc[0]) if has_weather else 35.0
+    air_temp = float(stint_df['air_temp_avg'].iloc[0]) if has_weather else 28.0
+    
+    # Get abrasiveness from event name if available
+    abrasiveness = 5.0
+    if 'Event' in stint_df.columns:
+        event = stint_df['Event'].iloc[0]
+        profile = get_track_profile(event)
+        abrasiveness = profile['abrasiveness']
+    
     features = []
     for _, row in stint_df.iterrows():
-        features.append([
+        feat = [
             normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
             COMPOUND_MAP[row['Compound']] / 2.0,
             normalize(row['Sector1Time'], SECTOR_MIN, SECTOR_MAX),
             normalize(row['Sector2Time'], SECTOR_MIN, SECTOR_MAX),
             normalize(row['Sector3Time'], SECTOR_MIN, SECTOR_MAX),
-        ])
-    return np.array(features, dtype=np.float32)
+            normalize(track_temp, TEMP_MIN, TEMP_MAX),
+            normalize(air_temp, TEMP_MIN, TEMP_MAX),
+            normalize(abrasiveness, ABRASIVENESS_MIN, ABRASIVENESS_MAX),
+        ]
+        features.append(feat)
+    
+    return np.array(features, dtype=np.float32) 
 
 
 def predict_future_laps(model, current_sequence, n_future=20):

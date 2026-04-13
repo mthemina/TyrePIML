@@ -1,33 +1,34 @@
 import torch
 import torch.nn as nn
 
+
 class TyreLSTM(nn.Module):
-    def __init__(self, input_size=5, hidden_size=64, num_layers=2):
-        """
-        input_size: number of features per lap (5)
-        hidden_size: how many neurons in the LSTM (64 is a good starting point)
-        num_layers: how many LSTM layers stacked on top of each other
-        """
+    def __init__(self, input_size=8, hidden_size=128, num_layers=2, dropout=0.3):
         super(TyreLSTM, self).__init__()
         
         self.lstm = nn.LSTM(
             input_size=input_size,
             hidden_size=hidden_size,
             num_layers=num_layers,
-            batch_first=True,  # input shape is (batch, sequence, features)
-            dropout=0.2        # randomly disable 20% of neurons to prevent overfitting
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0
         )
         
-        # Final layer that converts LSTM output to a single lap time prediction
-        self.output_layer = nn.Linear(hidden_size, 1)
+        # Explicit dropout layer after LSTM — this is what MC dropout uses
+        self.dropout = nn.Dropout(p=dropout)
+        
+        # Two layer output for better expressiveness
+        self.hidden_layer = nn.Linear(hidden_size, 32)
+        self.relu = nn.ReLU()
+        self.output_layer = nn.Linear(32, 1)
     
     def forward(self, x):
-        # Run sequence through LSTM
         lstm_out, _ = self.lstm(x)
-        
-        # Take only the last timestep's output
         last_output = lstm_out[:, -1, :]
         
-        # Predict lap time
-        prediction = self.output_layer(last_output)
-        return prediction.squeeze()
+        # Dropout applied here — active during MC sampling
+        dropped = self.dropout(last_output)
+        hidden = self.relu(self.hidden_layer(dropped))
+        prediction = self.output_layer(hidden)
+        
+        return prediction.squeeze() 

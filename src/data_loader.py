@@ -34,7 +34,11 @@ def load_race_session(year, round_number, event_name):
 
 def extract_lap_data(session):
     """Extract lap and tyre data from a session."""
-    laps = session.laps
+    try:
+        laps = session.laps
+    except Exception as e:
+        print(f"  Could not access lap data: {e}")
+        return None 
     
     columns = [
         'Driver', 'LapNumber', 'LapTime',
