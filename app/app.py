@@ -4,6 +4,7 @@ import pandas as pd
 import sys
 import os
 from src.uncertainty import predict_with_uncertainty, predict_cliff_with_uncertainty 
+import numpy as np 
 
 # Make sure src is importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -400,6 +401,38 @@ def undercut_analysis():
         })
 
     return jsonify({'results': results}) 
+
+@app.route('/api/driver_profile/<driver>')
+def driver_profile(driver):
+    """Return driver tyre management profile."""
+    import json
+    try:
+        with open('results/driver_profiles.json', 'r') as f:
+            profiles = json.load(f)
+        
+        if driver not in profiles:
+            return jsonify({'error': 'Driver not found'}), 404
+        
+        profile = profiles[driver]
+        
+        # Get field averages for comparison
+        all_rates = [p['overall_rate'] for p in profiles.values() 
+                    if p['overall_rate'] is not None]
+        field_avg = round(float(np.median(all_rates)), 4)
+        
+        return jsonify({
+            'driver': driver,
+            'overall_rate': profile['overall_rate'],
+            'overall_style': profile['overall_style'],
+            'compounds': profile['compounds'],
+            'field_avg': field_avg,
+            'percentile': round(
+                sum(1 for r in all_rates 
+                    if r <= profile['overall_rate']) / len(all_rates) * 100
+            )
+        })
+    except FileNotFoundError:
+        return jsonify({'error': 'Profiles not built yet'}), 404 
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000) 

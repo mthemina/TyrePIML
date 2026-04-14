@@ -1,0 +1,690 @@
+{
+  "BEA": {
+    "overall_rate": -0.0663,
+    "overall_style": "VERY GENTLE",
+    "compounds": {
+      "HARD": {
+        "rate": -0.0663,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "GRO": {
+    "overall_rate": -0.0253,
+    "overall_style": "VERY GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0254,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0114,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": -0.0253,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "KVY": {
+    "overall_rate": -0.02,
+    "overall_style": "VERY GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0232,
+        "style": "HARD"
+      },
+      "MEDIUM": {
+        "rate": -0.02,
+        "style": "VERY GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0234,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "DOO": {
+    "overall_rate": -0.0186,
+    "overall_style": "VERY GENTLE",
+    "compounds": {
+      "MEDIUM": {
+        "rate": -0.0255,
+        "style": "VERY GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0117,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "AIT": {
+    "overall_rate": -0.0177,
+    "overall_style": "VERY GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.113,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0177,
+        "style": "VERY GENTLE"
+      },
+      "HARD": {
+        "rate": 0.0304,
+        "style": "VERY HARD"
+      }
+    }
+  },
+  "HAR": {
+    "overall_rate": -0.0159,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0023,
+        "style": "GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0342,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "ERI": {
+    "overall_rate": -0.0159,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0556,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0237,
+        "style": "HARD"
+      }
+    }
+  },
+  "RIC": {
+    "overall_rate": -0.012,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.012,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0067,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0301,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "SIR": {
+    "overall_rate": -0.0113,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0298,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0072,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "ALO": {
+    "overall_rate": -0.0107,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0484,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0103,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0107,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "RAI": {
+    "overall_rate": -0.0107,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0103,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0107,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.017,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "NOR": {
+    "overall_rate": -0.0105,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0231,
+        "style": "HARD"
+      },
+      "MEDIUM": {
+        "rate": -0.0105,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.011,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "VAN": {
+    "overall_rate": -0.0097,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0244,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.005,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "OCO": {
+    "overall_rate": -0.0072,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0267,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.0072,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0047,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "ALB": {
+    "overall_rate": -0.007,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0138,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.007,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0057,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "PIA": {
+    "overall_rate": -0.006,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0363,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0524,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": -0.006,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "VET": {
+    "overall_rate": -0.0039,
+    "overall_style": "GENTLE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0039,
+        "style": "GENTLE"
+      },
+      "MEDIUM": {
+        "rate": -0.01,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": 0.0008,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "HAM": {
+    "overall_rate": -0.0004,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0419,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": -0.0049,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": -0.0004,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "VER": {
+    "overall_rate": -0.0003,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0314,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": -0.0003,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": -0.0109,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "STR": {
+    "overall_rate": 0.001,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0131,
+        "style": "AVERAGE"
+      },
+      "MEDIUM": {
+        "rate": -0.0062,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": 0.001,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "GAS": {
+    "overall_rate": 0.0013,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0154,
+        "style": "AVERAGE"
+      },
+      "MEDIUM": {
+        "rate": 0.0013,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": -0.0142,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "BOT": {
+    "overall_rate": 0.0024,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0093,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0024,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": 0.0165,
+        "style": "HARD"
+      }
+    }
+  },
+  "GIO": {
+    "overall_rate": 0.0032,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0342,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0032,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": 0.0002,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "HUL": {
+    "overall_rate": 0.0041,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0462,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0041,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": 0.0054,
+        "style": "HARD"
+      }
+    }
+  },
+  "MAG": {
+    "overall_rate": 0.0056,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.0182,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0126,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0056,
+        "style": "HARD"
+      }
+    }
+  },
+  "SAI": {
+    "overall_rate": 0.006,
+    "overall_style": "AVERAGE",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0081,
+        "style": "AVERAGE"
+      },
+      "MEDIUM": {
+        "rate": -0.0074,
+        "style": "GENTLE"
+      },
+      "HARD": {
+        "rate": 0.006,
+        "style": "HARD"
+      }
+    }
+  },
+  "PER": {
+    "overall_rate": 0.0108,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0108,
+        "style": "AVERAGE"
+      },
+      "MEDIUM": {
+        "rate": 0.0217,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0086,
+        "style": "HARD"
+      }
+    }
+  },
+  "MSC": {
+    "overall_rate": 0.0125,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.04,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0125,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0076,
+        "style": "HARD"
+      }
+    }
+  },
+  "DEV": {
+    "overall_rate": 0.0128,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0128,
+        "style": "AVERAGE"
+      },
+      "MEDIUM": {
+        "rate": 0.0604,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": -0.0001,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "LEC": {
+    "overall_rate": 0.0175,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0175,
+        "style": "HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0179,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": -0.0159,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "ZHO": {
+    "overall_rate": 0.0178,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0508,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0103,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0178,
+        "style": "VERY HARD"
+      }
+    }
+  },
+  "TSU": {
+    "overall_rate": 0.0181,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0347,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0181,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0069,
+        "style": "HARD"
+      }
+    }
+  },
+  "LAW": {
+    "overall_rate": 0.0191,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.3179,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0191,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": 0.0184,
+        "style": "VERY HARD"
+      }
+    }
+  },
+  "KUB": {
+    "overall_rate": 0.0205,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": -0.03,
+        "style": "VERY GENTLE"
+      },
+      "MEDIUM": {
+        "rate": 0.0284,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": 0.0205,
+        "style": "VERY HARD"
+      }
+    }
+  },
+  "RUS": {
+    "overall_rate": 0.0216,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0323,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0216,
+        "style": "HARD"
+      },
+      "HARD": {
+        "rate": -0.005,
+        "style": "AVERAGE"
+      }
+    }
+  },
+  "FIT": {
+    "overall_rate": 0.0226,
+    "overall_style": "HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0226,
+        "style": "HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0949,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": -0.0739,
+        "style": "VERY GENTLE"
+      }
+    }
+  },
+  "LAT": {
+    "overall_rate": 0.0362,
+    "overall_style": "VERY HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0362,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0416,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": -0.0106,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "MAZ": {
+    "overall_rate": 0.0389,
+    "overall_style": "VERY HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.0389,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0019,
+        "style": "AVERAGE"
+      },
+      "HARD": {
+        "rate": 0.0929,
+        "style": "VERY HARD"
+      }
+    }
+  },
+  "COL": {
+    "overall_rate": 0.0468,
+    "overall_style": "VERY HARD",
+    "compounds": {
+      "MEDIUM": {
+        "rate": 0.1015,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": -0.0079,
+        "style": "GENTLE"
+      }
+    }
+  },
+  "SAR": {
+    "overall_rate": 0.0481,
+    "overall_style": "VERY HARD",
+    "compounds": {
+      "SOFT": {
+        "rate": 0.137,
+        "style": "VERY HARD"
+      },
+      "MEDIUM": {
+        "rate": 0.0481,
+        "style": "VERY HARD"
+      },
+      "HARD": {
+        "rate": 0.0409,
+        "style": "VERY HARD"
+      }
+    }
+  }
+}
