@@ -3,12 +3,13 @@ import torch
 import pandas as pd
 import sys
 import os
-from src.uncertainty import predict_with_uncertainty, predict_cliff_with_uncertainty 
 import numpy as np 
+import json 
 
 # Make sure src is importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src.uncertainty import predict_with_uncertainty, predict_cliff_with_uncertainty  
 from src.model import TyreLSTM
 from src.race_strategy import analyze_all_drivers, predict_rival_response
 from src.cliff_detector import detect_cliff_with_confidence
@@ -21,7 +22,7 @@ app = Flask(__name__)
 print("Loading models...")
 
 # Main PIML model
-main_model = TyreLSTM(input_size=8, hidden_size=128, num_layers=2)
+main_model = TyreLSTM(input_size=9, hidden_size=128, num_layers=2)
 main_model.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
 main_model.eval()
 model = main_model  # backwards compatibility alias 
@@ -38,6 +39,24 @@ for compound in ['soft', 'medium', 'hard']:
         print(f"  Loaded {compound} model")
 
 print(f"Models ready. Compound models: {list(compound_models.keys())}")
+
+# Track-specific models
+track_models = {}
+track_registry_path = 'models/tracks/registry.json'
+if os.path.exists(track_registry_path):
+    with open(track_registry_path, 'r') as f:
+        track_registry = json.load(f)
+    
+    for track_name, info in track_registry.items():
+        if os.path.exists(info['path']):
+            m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
+            m.load_state_dict(torch.load(info['path']))
+            m.eval()
+            track_models[track_name] = m
+    
+    print(f"  Loaded {len(track_models)} track models")
+
+
 
 def get_model_for_driver(stint_df):
     """Return the best model for a driver's current compound."""
@@ -153,8 +172,18 @@ def pit_chart():
     if len(stint_df) < 5:
         return jsonify({'error': 'Not enough data'}), 400
     
-    # Get model and uncertainty predictions
-    model, _ = get_model_for_driver(stint_df)
+    # Get model and uncertainty predictions using the dynamic Model Router
+    track_name = race_key.split('_', 1)[1] if '_' in race_key else race_key
+    compound = stint_df['Compound'].iloc[-1]
+    
+    from src.model_router import get_best_model
+    try:
+        model, model_tier = get_best_model(track_name, compound)
+    except Exception as e:
+        print(f"Router fallback triggered: {e}")
+        model, _ = get_model_for_driver(stint_df) # Fallback to static memory model
+        model_tier = "Generic PIML v2 (Memory Fallback)"
+        
     n_future = 25
     
     # Uncertainty-aware predictions
@@ -259,8 +288,9 @@ def pit_chart():
         'chart': img_base64,
         'optimal_pit': optimal_pit,
         'cliff_lap': cliff['mean'] if cliff else None,
-        'cliff_std': cliff['std'] if cliff else None
-    })
+        'cliff_std': cliff['std'] if cliff else None,
+        'model_tier': model_tier
+    }) 
 
 @app.route('/api/strategy_map', methods=['POST'])
 def strategy_map():

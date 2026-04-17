@@ -42,14 +42,15 @@ def calculate_driver_degradation_rates(data_path='data/'):
             
             # Calculate degradation rate per stint
             stint_rates = []
-            for (race, stint), stint_df in compound_df.groupby(
-                [compound_df.get('Event', compound_df.index), 
-                 'Stint']
-            ):
+            
+            # Pylance-safe grouping
+            group_cols = ['Event', 'Stint'] if 'Event' in compound_df.columns else ['Stint']
+            
+            for _, stint_df in compound_df.groupby(group_cols):
                 if len(stint_df) < 5:
                     continue
                 
-                stint_df = stint_df.sort_values('TyreLife')
+                stint_df = stint_df.sort_values('TyreLife') 
                 
                 # Linear regression slope = degradation rate
                 x = stint_df['TyreLife'].values

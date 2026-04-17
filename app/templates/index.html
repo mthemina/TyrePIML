@@ -509,7 +509,18 @@
             document.getElementById('optimalPitLap').textContent =
                 data.optimal_pit ? 'Optimal: Lap ' + data.optimal_pit : 'N/A';
             document.getElementById('pitChartCard').style.display = 'block';
-        }
+            
+            // Inject Model Tier Badge into Status Bar
+            const statusBar = document.getElementById('statusBar');
+            let icon = "⚙️";
+            if (data.model_tier.includes("Track")) icon = "🏁";
+            else if (data.model_tier.includes("Compound")) icon = "🧪";
+            
+            statusBar.innerHTML += `
+                <span style="float: right; background: #252525; padding: 3px 12px; border-radius: 6px; color: #C9A84C; font-size: 0.85rem; border: 1px solid #3a3a3a; margin-top: -2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                    ${icon} Intelligence: ${data.model_tier}
+                </span>`;
+        } 
     }
 
     async function analyze() {
