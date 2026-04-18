@@ -239,6 +239,12 @@
                 Analyze
             </button>
         </div>
+        <div class="control-group">
+            <label>Live Race</label>
+            <button class="btn" id="playBtn" onclick="togglePlayback()" style="background: #C9A84C; color: #0F0F0F;">
+                ▶️ Auto-Advance
+            </button>
+        </div> 
     </div>
 
     <div class="status-bar" id="statusBar">
@@ -613,6 +619,46 @@
         document.getElementById('analyzeBtn').disabled = false;
     }
 
+    // --- TASK 5: LIVE PLAYBACK STATE MACHINE ---
+    let playbackInterval = null;
+
+    function togglePlayback() {
+        const btn = document.getElementById('playBtn');
+        const lapInput = document.getElementById('lapInput');
+        const maxLaps = parseInt(lapInput.max);
+
+        if (playbackInterval) {
+            // STOP PLAYBACK
+            clearInterval(playbackInterval);
+            playbackInterval = null;
+            btn.innerHTML = '▶️ Auto-Advance';
+            btn.style.background = '#C9A84C';
+            btn.style.color = '#0F0F0F';
+        } else {
+            // START PLAYBACK
+            btn.innerHTML = '⏸️ Pause';
+            btn.style.background = '#8B2020';
+            btn.style.color = '#F0EDE4';
+
+            // Advance the lap and trigger analysis every 4 seconds
+            playbackInterval = setInterval(async () => {
+                let currentLap = parseInt(lapInput.value);
+                
+                if (currentLap < maxLaps) {
+                    currentLap++;
+                    lapInput.value = currentLap;
+                    document.getElementById('lapDisplay').textContent = currentLap;
+                    
+                    // Trigger the main analyze function
+                    await analyze();
+                } else {
+                    // Auto-stop when race finishes
+                    togglePlayback();
+                }
+            }, 4000); // 4000ms = 4 seconds per lap. Adjust if your M2 computes faster/slower!
+        }
+    } 
+    
     // Load drivers on page load
     loadDrivers();
 </script>

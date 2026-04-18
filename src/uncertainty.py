@@ -66,7 +66,7 @@ def predict_with_uncertainty(model, stint_df, n_future=20, n_samples=30):
     Full uncertainty-aware prediction for a driver stint.
     Returns predictions with confidence bands.
     """
-    sequence = prepare_sequence(stint_df)
+    sequence = prepare_sequence(model, stint_df) 
     
     if len(sequence) < 5:
         return None
@@ -94,7 +94,7 @@ def predict_cliff_with_uncertainty(model, stint_df,
     Predict performance cliff with full uncertainty quantification.
     Returns cliff lap distribution across all MC samples.
     """
-    sequence = prepare_sequence(stint_df)
+    sequence = prepare_sequence(model, stint_df) 
     current_lap = int(stint_df['TyreLife'].max())
     current_avg = stint_df['LapTime'].mean()
     
@@ -150,14 +150,17 @@ if __name__ == '__main__':
     
     print(f"{'Lap':>4} {'Mean':>8} {'Std':>6} {'P25':>8} {'P75':>8} {'Band':>8}")
     print("-" * 50)
-    for i in range(len(result['laps'])):
-        band = result['p75'][i] - result['p25'][i]
-        print(f"{result['laps'][i]:>4} "
-              f"{result['mean'][i]:>8.3f} "
-              f"{result['std'][i]:>6.3f} "
-              f"{result['p25'][i]:>8.3f} "
-              f"{result['p75'][i]:>8.3f} "
-              f"{band:>8.3f}")
+    if result is None:
+        print("Not enough telemetry data to calculate uncertainty for this stint.")
+    else:
+        for i in range(len(result['laps'])):
+            band = result['p75'][i] - result['p25'][i]
+            print(f"{result['laps'][i]:>4} "
+                  f"{result['mean'][i]:>8.3f} "
+                  f"{result['std'][i]:>6.3f} "
+                  f"{result['p25'][i]:>8.3f} "
+                  f"{result['p75'][i]:>8.3f} "
+                  f"{band:>8.3f}") 
     
     print("\n=== Cliff Prediction with Uncertainty ===\n")
     cliff = predict_cliff_with_uncertainty(model, ver, n_samples=30)
