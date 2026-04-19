@@ -52,7 +52,8 @@ def calculate_pit_loss(track, simulate_variance=False):
 
 def simulate_undercut(model, driver1_df, driver2_df, 
                       current_lap, gap_seconds, track='default', n_future=20, 
-                      apply_dirty_air=True, simulate_pit_variance=False):
+                      apply_dirty_air=True, simulate_pit_variance=False,
+                      is_2026=False): # <-- ADDED PARAMETER
     """
     Simulate whether driver1 should undercut driver2.
     """
@@ -70,16 +71,16 @@ def simulate_undercut(model, driver1_df, driver2_df,
         d1_pace = d1_future[i]
         d2_pace = d2_future[i]
         
-        # DIRTY AIR PENALTY LOGIC
-        # If D1 is within 1.5s behind D2, D1's pace suffers
+        # 2026 AERO-WAKE ADJUSTER
+        # 2026 cars have less turbulent wake due to Active Aero.
+        max_penalty = 0.15 if is_2026 else 0.30
+        
         if apply_dirty_air and 0 < cumulative_gap <= 1.5:
-             # Scale penalty based on closeness (closer = more dirty air)
-             penalty = 0.3 * (1.5 - cumulative_gap) / 1.5
+             penalty = max_penalty * (1.5 - cumulative_gap) / 1.5
              d1_pace += penalty 
              
-        # If D2 is within 1.5s behind D1 (D1 has passed them)
         if apply_dirty_air and -1.5 <= cumulative_gap < 0:
-             penalty = 0.3 * (1.5 - abs(cumulative_gap)) / 1.5
+             penalty = max_penalty * (1.5 - abs(cumulative_gap)) / 1.5
              d2_pace += penalty
 
         lap_delta = d2_pace - d1_pace
@@ -96,12 +97,13 @@ def simulate_undercut(model, driver1_df, driver2_df,
         'gap_evolution': gap_evolution,
         'initial_gap': gap_seconds,
         'pit_loss': pit_loss
-    }
+    } 
 
 
 def simulate_overcut(model, driver1_df, driver2_df,
                      current_lap, gap_seconds, track='default', n_future=20,
-                     apply_dirty_air=True, simulate_pit_variance=False):
+                     apply_dirty_air=True, simulate_pit_variance=False,
+                     is_2026=False): # <-- ADDED PARAMETER
     """
     Simulate whether driver1 should overcut driver2.
     """
@@ -119,13 +121,15 @@ def simulate_overcut(model, driver1_df, driver2_df,
         d1_pace = d1_future[i]
         d2_pace = d2_future[i]
         
-        # DIRTY AIR PENALTY LOGIC
+        # 2026 AERO-WAKE ADJUSTER
+        max_penalty = 0.15 if is_2026 else 0.30
+        
         if apply_dirty_air and 0 < cumulative_gap <= 1.5:
-             penalty = 0.3 * (1.5 - cumulative_gap) / 1.5
+             penalty = max_penalty * (1.5 - cumulative_gap) / 1.5
              d1_pace += penalty 
              
         if apply_dirty_air and -1.5 <= cumulative_gap < 0:
-             penalty = 0.3 * (1.5 - abs(cumulative_gap)) / 1.5
+             penalty = max_penalty * (1.5 - abs(cumulative_gap)) / 1.5
              d2_pace += penalty
              
         lap_delta = d1_pace - d2_pace
@@ -142,7 +146,7 @@ def simulate_overcut(model, driver1_df, driver2_df,
         'gap_evolution': gap_evolution,
         'initial_gap': gap_seconds,
         'pit_loss': pit_loss
-    }
+    } 
 
 def simulate_stint_extension(model, stint_df, current_lap, optimal_pit_lap, extended_pit_lap, track='default'):
     """

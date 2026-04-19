@@ -174,6 +174,7 @@
         padding: 16px;
         color: #cc4444;
         display: none;
+        word-break: break-all;
     }
 
     .status-bar {
@@ -235,6 +236,13 @@
             <input type="number" id="pitLapInput" value="18" min="1" max="70">
         </div>
         <div class="control-group">
+            <label>Physics Engine</label>
+            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                <input type="checkbox" id="toggle2026" style="width: 18px; height: 18px; cursor: pointer; accent-color: #6B7C3F;">
+                <span style="font-size: 0.85rem; color: #F0EDE4; font-weight: 600;">2026 Active Aero</span>
+            </div>
+        </div> 
+        <div class="control-group">
             <button class="btn" onclick="analyze()" id="analyzeBtn">
                 Analyze
             </button>
@@ -289,7 +297,6 @@
         </div>
     </div>
 
-    <!-- Pit Window Chart -->
     <div class="card" id="pitChartCard" style="margin-top: 24px; display:none">
         <h2>📊 Pit Window Analysis — <span id="pitChartDriver"></span>
             <span class="optimal-pit-badge" id="optimalPitLap"></span>
@@ -304,7 +311,6 @@
         </div>
     </div>
 
-    <!-- Strategy Map -->
     <div class="card" id="strategyMapCard" style="margin-top: 24px; display:none">
         <h2>🗺️ Race Strategy Map — <span id="strategyMapRace"></span></h2>
         <div style="text-align:center; padding: 16px 0;">
@@ -316,7 +322,6 @@
             </span>
         </div>
     </div> 
-    <!-- Undercut / Overcut Panel -->
     <div class="card" id="undercutCard" style="margin-top: 24px; display:none">
         <h2>⚡ Undercut / Overcut Simulator — <span id="undercutDriver"></span></h2>
         <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
@@ -341,7 +346,6 @@
         </table>
     </div> 
 
-    <!-- Driver Profile Card -->
     <div class="card" id="driverProfileCard" style="margin-top: 24px; display:none">
         <h2>👤 Driver Tyre Profile — <span id="profileDriverName"></span></h2>
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
@@ -379,10 +383,42 @@
 
 <script>
     
+    // --- THE BULLETPROOF BLOB LOADER ---
+    // This bypasses Safari's strict Data URI parser completely
+    function updateImageSmoothly(imgElementId, base64Data) {
+        try {
+            // 1. Force absolute cleanliness
+            let cleanStr = String(base64Data).replace(/[^A-Za-z0-9+/=]/g, '');
+            
+            // 2. Ensure perfect padding (Safari hates missing padding)
+            let unpadded = cleanStr.replace(/=+$/, '');
+            while (unpadded.length % 4 !== 0) {
+                unpadded += '=';
+            }
+            
+            // 3. Convert to Byte Array and Blob (Bypasses URI parsing)
+            const byteChars = atob(unpadded);
+            const byteNums = new Array(byteChars.length);
+            for (let i = 0; i < byteChars.length; i++) {
+                byteNums[i] = byteChars.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNums);
+            const blob = new Blob([byteArray], {type: 'image/png'});
+            
+            // 4. Assign Memory Pointer
+            document.getElementById(imgElementId).src = URL.createObjectURL(blob);
+            
+        } catch (e) {
+            console.warn("Blob conversion skipped, attempting direct render.");
+            // Absolute last resort fallback
+            document.getElementById(imgElementId).src = 'data:image/png;base64,' + String(base64Data).replace(/\s/g, '');
+        }
+    }
+    
     async function loadDriverProfile() {
         const driver = document.getElementById('driverSelect').value;
         
-        const res = await fetch(`/api/driver_profile/${driver}`);
+        const res = await fetch(`/api/driver_profile/${encodeURIComponent(driver)}`);
         const data = await res.json();
         
         if (data.error) return;
@@ -431,11 +467,13 @@
         const lap = document.getElementById('lapInput').value;
         const driver = document.getElementById('driverSelect').value;
         const gap = document.getElementById('gapInput').value;
+        
+        const is_2026 = document.getElementById('toggle2026').checked;
 
         const res = await fetch('/api/undercut', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({race, lap, driver, gap})
+            body: JSON.stringify({race, lap, driver, gap, is_2026})
         });
         const data = await res.json();
 
@@ -470,12 +508,10 @@
         const data = await res.json();
 
         if (data.chart) {
-            document.getElementById('strategyMapImg').src =
-                'data:image/png;base64,' + data.chart;
-            document.getElementById('strategyMapRace').textContent = 
-                race.replace('_', ' ');
+            updateImageSmoothly('strategyMapImg', data.chart); 
+            document.getElementById('strategyMapRace').textContent = String(race).split('_').join(' '); 
             document.getElementById('strategyMapCard').style.display = 'block';
-        }
+        } 
     } 
 
     async function loadDrivers() {
@@ -509,8 +545,7 @@
         const data = await res.json();
 
         if (data.chart) {
-            document.getElementById('pitChartImg').src =
-                'data:image/png;base64,' + data.chart;
+            updateImageSmoothly('pitChartImg', data.chart); 
             document.getElementById('pitChartDriver').textContent = driver;
             document.getElementById('optimalPitLap').textContent =
                 data.optimal_pit ? 'Optimal: Lap ' + data.optimal_pit : 'N/A';
@@ -519,8 +554,8 @@
             // Inject Model Tier Badge into Status Bar
             const statusBar = document.getElementById('statusBar');
             let icon = "⚙️";
-            if (data.model_tier.includes("Track")) icon = "🏁";
-            else if (data.model_tier.includes("Compound")) icon = "🧪";
+            if (data.model_tier && data.model_tier.includes("Track")) icon = "🏁";
+            else if (data.model_tier && data.model_tier.includes("Compound")) icon = "🧪";
             
             statusBar.innerHTML += `
                 <span style="float: right; background: #252525; padding: 3px 12px; border-radius: 6px; color: #C9A84C; font-size: 0.85rem; border: 1px solid #3a3a3a; margin-top: -2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
@@ -535,17 +570,21 @@
         const driver = document.getElementById('driverSelect').value;
         const pitLap = document.getElementById('pitLapInput').value;
 
-        document.getElementById('loadingBox').style.display = 'block';
-        document.getElementById('resultsGrid').style.display = 'none';
-        document.getElementById('pitChartCard').style.display = 'none';
-        document.getElementById('errorBox').style.display = 'none';
-        document.getElementById('strategyMapCard').style.display = 'none'; 
-        document.getElementById('undercutCard').style.display = 'none'; 
-        document.getElementById('driverProfileCard').style.display = 'none'; 
-        document.getElementById('analyzeBtn').disabled = true;
+        const isLive = playbackInterval !== null;
+
+        if (!isLive) {
+            document.getElementById('loadingBox').style.display = 'block';
+            document.getElementById('resultsGrid').style.display = 'none';
+            document.getElementById('pitChartCard').style.display = 'none';
+            document.getElementById('errorBox').style.display = 'none';
+            document.getElementById('strategyMapCard').style.display = 'none'; 
+            document.getElementById('undercutCard').style.display = 'none'; 
+            document.getElementById('driverProfileCard').style.display = 'none'; 
+        }
+        
+        document.getElementById('analyzeBtn').disabled = true; 
 
         try {
-            // Fetch tyre analysis
             const analysisRes = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -553,7 +592,6 @@
             });
             const analysisData = await analysisRes.json();
 
-            // Fetch rival response
             const strategyRes = await fetch('/api/strategy', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -561,7 +599,6 @@
             });
             const strategyData = await strategyRes.json();
 
-            // Render tyre table
             const tyreBody = document.getElementById('tyreBody');
             tyreBody.innerHTML = analysisData.drivers.map(d => `
                 <tr>
@@ -574,7 +611,6 @@
                 </tr>
             `).join('');
 
-            // Render rival table
             const rivalBody = document.getElementById('rivalBody');
             if (strategyData.rival_responses && strategyData.rival_responses.length > 0) {
                 rivalBody.innerHTML = strategyData.rival_responses.map(r => `
@@ -595,19 +631,20 @@
                     </tr>`;
             } 
 
+            const cleanRaceName = String(race).split('_').join(' ');
             document.getElementById('statusBar').innerHTML = 
-                `Showing analysis for <span>${race.replace('_',' ')}</span> 
+                `Showing analysis for <span>${cleanRaceName}</span> 
                 at <span>Lap ${lap}</span> — 
                 Focus driver: <span>${driver}</span> 
                 planning pit at <span>Lap ${pitLap}</span>`;
 
             document.getElementById('resultsGrid').style.display = 'grid';
 
-            // Load pit chart
-            await loadPitChart();
-            await loadStrategyMap(); 
-            await loadUndercut(); 
-            await loadDriverProfile(); 
+            // DEFENSIVE EXECUTION: If one module fails, keep the rest running
+            try { await loadPitChart(); } catch (e) { console.error("Chart failed", e); }
+            try { await loadStrategyMap(); } catch (e) { console.error("Map failed", e); }
+            try { await loadUndercut(); } catch (e) { console.error("Undercut failed", e); }
+            try { await loadDriverProfile(); } catch (e) { console.error("Profile failed", e); }
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
@@ -628,19 +665,16 @@
         const maxLaps = parseInt(lapInput.max);
 
         if (playbackInterval) {
-            // STOP PLAYBACK
             clearInterval(playbackInterval);
             playbackInterval = null;
             btn.innerHTML = '▶️ Auto-Advance';
             btn.style.background = '#C9A84C';
             btn.style.color = '#0F0F0F';
         } else {
-            // START PLAYBACK
             btn.innerHTML = '⏸️ Pause';
             btn.style.background = '#8B2020';
             btn.style.color = '#F0EDE4';
 
-            // Advance the lap and trigger analysis every 4 seconds
             playbackInterval = setInterval(async () => {
                 let currentLap = parseInt(lapInput.value);
                 
@@ -649,19 +683,16 @@
                     lapInput.value = currentLap;
                     document.getElementById('lapDisplay').textContent = currentLap;
                     
-                    // Trigger the main analyze function
                     await analyze();
                 } else {
-                    // Auto-stop when race finishes
                     togglePlayback();
                 }
-            }, 4000); // 4000ms = 4 seconds per lap. Adjust if your M2 computes faster/slower!
+            }, 4000); 
         }
     } 
     
-    // Load drivers on page load
     loadDrivers();
 </script>
 
 </body>
-</html> 
+</html>

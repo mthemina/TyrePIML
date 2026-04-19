@@ -372,13 +372,15 @@ def undercut_analysis():
     at_lap = int(data.get('lap', 15))
     gap_seconds = float(data.get('gap', 2.5))
     track = race_key.split('_')[1] if '_' in race_key else 'default'
+    
+    # 2026 REGULATION FLAG
+    is_2026 = data.get('is_2026', False)
 
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
 
     df = pd.read_csv(RACES[race_key])
     
-    # Get focus driver stint
     driver_laps = df[df['Driver'] == driver]
     current_laps = driver_laps[driver_laps['LapNumber'] <= at_lap]
     if len(current_laps) == 0:
@@ -410,13 +412,16 @@ def undercut_analysis():
 
         from src.strategy_simulator import simulate_undercut, simulate_overcut
         
+        # Pass the 2026 flag down into the physics simulator!
         undercut = simulate_undercut(
             model, driver_stint, rival_stint,
-            at_lap, gap_seconds, track
+            at_lap, gap_seconds, track,
+            is_2026=is_2026
         )
         overcut = simulate_overcut(
             model, driver_stint, rival_stint,
-            at_lap, gap_seconds, track
+            at_lap, gap_seconds, track,
+            is_2026=is_2026
         )
 
         results.append({
