@@ -5,6 +5,7 @@ import sys
 import os
 import numpy as np 
 import json 
+from functools import lru_cache
 
 # Make sure src is importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,8 +57,6 @@ if os.path.exists(track_registry_path):
     
     print(f"  Loaded {len(track_models)} track models")
 
-
-
 def get_model_for_driver(stint_df):
     """Return the best model for a driver's current compound."""
     compound = stint_df['Compound'].iloc[-1] if len(stint_df) > 0 else 'MEDIUM'
@@ -76,6 +75,12 @@ for filepath in sorted(glob.glob('data/*.csv')):
 
 print(f"Loaded {len(RACES)} races") 
 
+# --- TASK 4: 60-FPS MEMORY CACHE ---
+@lru_cache(maxsize=10)
+def load_race_data(race_key):
+    """Prevents the server from reading the hard drive 5 times per tick."""
+    return pd.read_csv(RACES[race_key])
+
 @app.route('/')
 def index():
     return render_template('index.html', races=list(RACES.keys()))
@@ -85,7 +90,9 @@ def get_drivers(race_key):
     """Return list of drivers for a given race."""
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
-    df = pd.read_csv(RACES[race_key])
+    
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     drivers = sorted(df['Driver'].unique().tolist())
     return jsonify({'drivers': drivers})
 
@@ -99,7 +106,8 @@ def analyze():
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
     
-    df = pd.read_csv(RACES[race_key])
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     
     # Multi driver analysis
     analysis = analyze_all_drivers(model, df, at_lap=at_lap)
@@ -120,15 +128,68 @@ def strategy():
     at_lap = int(data.get('lap', 15))
     pit_lap = int(data.get('pit_lap', at_lap + 3))
     
+    # Grab the 2026 toggle flag from the frontend
+    is_2026 = data.get('is_2026', False)
+    
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
     
-    df = pd.read_csv(RACES[race_key])
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     
-    # Rival response
+    # 1. Fetch Legacy Rival response (gives us the base dataframe)
     responses = predict_rival_response(model, df, driver, at_lap, pit_lap)
     if responses is None:
         return jsonify({'error': 'Driver not found'}), 404
+        
+    # --- 2. MULTI-AGENT GAME THEORY INJECTION (2026 MODE) ---
+    if is_2026:
+        try:
+            from src.rival_logic import evaluate_2026_rival
+            
+            # Get focus driver's current tyre age
+            driver_laps = df[(df['Driver'] == driver) & (df['LapNumber'] <= at_lap)]
+            undercutter_tyre_age = driver_laps['TyreLife'].iloc[-1] if len(driver_laps) > 0 else 10
+            
+            soc_list = []
+            
+            # Iterate through the rivals and apply the Nash Equilibrium matrix
+            for index, row in responses.iterrows():
+                rival = row['Rival']
+                
+                # Get rival's current tyre age
+                rival_laps = df[(df['Driver'] == rival) & (df['LapNumber'] <= at_lap)]
+                rival_tyre_age = rival_laps['TyreLife'].iloc[-1] if len(rival_laps) > 0 else 10
+                
+                # Proxy undercut threat based on legacy urgency for the API feed
+                urgency = row.get('RivalUrgency', 'LOW')
+                threat_seconds = 2.5 if urgency == 'HIGH' else 1.0
+                
+                # Run the Bayesian logic
+                nash_result = evaluate_2026_rival(
+                    driver=driver,
+                    rival=rival,
+                    undercut_threat_seconds=threat_seconds,
+                    rival_tyre_age=rival_tyre_age,
+                    undercutter_tyre_age=undercutter_tyre_age,
+                    current_lap=at_lap,
+                    track_name=race_key
+                )
+                
+                # Overwrite the legacy response with 2026 intelligence
+                responses.at[index, 'CanCover'] = nash_result['Can_Cover']
+                responses.at[index, 'ExpectedResponse'] = nash_result['Expected_Response']
+                soc_list.append(nash_result['Estimated_SoC'])
+                
+            # Append the new Battery Data to the payload
+            responses['Estimated_SoC'] = soc_list
+            
+        except ImportError:
+            print("Warning: rival_logic.py not found. Falling back to legacy strategy.")
+            responses['Estimated_SoC'] = "N/A"
+    else:
+        # If in 2025 legacy mode, fill SoC with N/A
+        responses['Estimated_SoC'] = "N/A"
     
     responses = responses.fillna('N/A')
     
@@ -157,7 +218,8 @@ def pit_chart():
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
     
-    df = pd.read_csv(RACES[race_key])
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     driver_laps = df[df['Driver'] == driver]
     current_laps = driver_laps[driver_laps['LapNumber'] <= at_lap]
     
@@ -301,7 +363,8 @@ def strategy_map():
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
     
-    df = pd.read_csv(RACES[race_key])
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     
     COMPOUND_COLORS = {
         'SOFT': '#7a1f1f',
@@ -379,7 +442,8 @@ def undercut_analysis():
     if race_key not in RACES:
         return jsonify({'error': 'Race not found'}), 404
 
-    df = pd.read_csv(RACES[race_key])
+    # 60-FPS CACHE INTEGRATION
+    df = load_race_data(race_key)
     
     driver_laps = df[df['Driver'] == driver]
     current_laps = driver_laps[driver_laps['LapNumber'] <= at_lap]

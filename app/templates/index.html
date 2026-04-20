@@ -288,13 +288,13 @@
                         <th>Rival</th>
                         <th>Cliff</th>
                         <th>Urgency</th>
-                        <th>Can Cover</th>
+                        <th>Battery SoC</th> <th>Can Cover</th>
                         <th>Expected Response</th>
                     </tr>
                 </thead>
                 <tbody id="rivalBody"></tbody>
             </table>
-        </div>
+        </div> 
     </div>
 
     <div class="card" id="pitChartCard" style="margin-top: 24px; display:none">
@@ -592,12 +592,16 @@
             });
             const analysisData = await analysisRes.json();
 
+            // 1. Grab the 2026 toggle state
+            const is_2026 = document.getElementById('toggle2026').checked;
+
+            // 2. Pass it into the Strategy API!
             const strategyRes = await fetch('/api/strategy', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({race, lap, driver, pit_lap: pitLap})
+                body: JSON.stringify({race, lap, driver, pit_lap: pitLap, is_2026: is_2026}) 
             });
-            const strategyData = await strategyRes.json();
+            const strategyData = await strategyRes.json(); 
 
             const tyreBody = document.getElementById('tyreBody');
             tyreBody.innerHTML = analysisData.drivers.map(d => `
@@ -611,21 +615,40 @@
                 </tr>
             `).join('');
 
+            // Render rival table (2026 ENERGY WAR UPGRADE)
             const rivalBody = document.getElementById('rivalBody');
             if (strategyData.rival_responses && strategyData.rival_responses.length > 0) {
-                rivalBody.innerHTML = strategyData.rival_responses.map(r => `
+                rivalBody.innerHTML = strategyData.rival_responses.map(r => {
+                    
+                    // 1. Dynamic color coding for the 2026 Response Action
+                    let responseColor = '#F0EDE4'; // Default off-white
+                    if (r.ExpectedResponse.includes('DEFEND')) responseColor = '#C9A84C'; // Gold for 350kW Override
+                    if (r.ExpectedResponse.includes('HARVEST')) responseColor = '#6B7C3F'; // Green for saving energy
+                    if (r.ExpectedResponse.includes('COVER')) responseColor = '#8B2020'; // Red for pitting
+                    
+                    // 2. Battery SoC Styling with Lightning Icon
+                    let socHtml = r.Estimated_SoC;
+                    if (socHtml !== "N/A") {
+                        const socValue = parseInt(socHtml);
+                        const socColor = socValue > 65 ? '#6B7C3F' : (socValue < 30 ? '#8B2020' : '#C9A84C');
+                        socHtml = `<span style="color: ${socColor}; font-weight: 700;">⚡ ${r.Estimated_SoC}</span>`;
+                    } else {
+                        socHtml = `<span style="color: #555;">${r.Estimated_SoC}</span>`;
+                    }
+
+                    return `
                     <tr>
                         <td><strong>${r.Rival}</strong></td>
                         <td>${r.RivalCliff}</td>
                         <td><span class="urgency-${r.RivalUrgency}">${r.RivalUrgency}</span></td>
-                        <td>${r.CanCover ? '✅' : '❌'}</td>
-                        <td>${r.ExpectedResponse}</td>
+                        <td>${socHtml}</td> <td>${r.CanCover ? '✅' : '❌'}</td>
+                        <td style="color: ${responseColor}; font-weight: 600;">${r.ExpectedResponse}</td>
                     </tr>
-                `).join('');
+                `}).join('');
             } else {
                 rivalBody.innerHTML = `
                     <tr>
-                        <td colspan="5" style="color:#888; text-align:center; padding:20px;">
+                        <td colspan="6" style="color:#888; text-align:center; padding:20px;">
                             No rival data available for this driver at this lap.
                         </td>
                     </tr>`;
