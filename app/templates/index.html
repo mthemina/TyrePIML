@@ -4,202 +4,161 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TyrePIML — F1 Strategy Intelligence</title>
-   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    body {
-        background: #0F0F0F;
-        color: #F0EDE4;
-        font-family: 'Segoe UI', sans-serif;
-        min-height: 100vh;
-    }
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    header {
-        background: #1a1f0f;
-        border-bottom: 2px solid #6B7C3F;
-        padding: 16px 32px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
+        body {
+            background: #0F0F0F;
+            color: #F0EDE4;
+            font-family: 'Segoe UI', sans-serif;
+            min-height: 100vh;
+        }
 
-    header h1 {
-        font-size: 1.5rem;
-        font-weight: 700;
-        letter-spacing: 2px;
-        color: #6B7C3F;
-    }
+        header {
+            background: #1a1f0f;
+            border-bottom: 2px solid #6B7C3F;
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
 
-    header span {
-        font-size: 0.85rem;
-        color: #C9A84C;
-        opacity: 0.9;
-    }
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #6B7C3F;
+        }
 
-    .container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 32px;
-    }
+        header span {
+            font-size: 0.85rem;
+            color: #C9A84C;
+            opacity: 0.9;
+        }
 
-    .controls {
-        background: #1E1E1E;
-        border-radius: 12px;
-        padding: 24px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 16px;
-        margin-bottom: 32px;
-        border: 1px solid #2a2a2a;
-    }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px;
+        }
 
-    .control-group label {
-        display: block;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        color: #C9A84C;
-        margin-bottom: 8px;
-    }
+        .controls {
+            background: #1E1E1E;
+            border-radius: 12px;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+            border: 1px solid #2a2a2a;
+        }
 
-    select, input {
-        width: 100%;
-        background: #2a2a2a;
-        border: 1px solid #3a3a3a;
-        color: #F0EDE4;
-        padding: 10px 14px;
-        border-radius: 8px;
-        font-size: 0.95rem;
-        outline: none;
-    }
+        .control-group label {
+            display: block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #C9A84C;
+            margin-bottom: 8px;
+        }
 
-    select:focus, input:focus {
-        border-color: #6B7C3F;
-    }
+        select, input[type="number"], input[type="range"] {
+            width: 100%;
+            background: #2a2a2a;
+            border: 1px solid #3a3a3a;
+            color: #F0EDE4;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+        }
 
-    .btn {
-        background: #6B7C3F;
-        color: #F0EDE4;
-        border: none;
-        padding: 12px 28px;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background 0.2s;
-        align-self: end;
-        letter-spacing: 1px;
-    }
+        input[type="range"] { padding: 6px 0; cursor: pointer; }
+        select:focus, input:focus { border-color: #6B7C3F; }
 
-    .btn:hover { background: #7d9149; }
-    .btn:disabled { background: #444; cursor: not-allowed; }
+        .btn {
+            background: #6B7C3F;
+            color: #F0EDE4;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            align-self: end;
+            letter-spacing: 1px;
+            width: 100%;
+        }
 
-    .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px;
-    }
+        .btn:hover { background: #7d9149; }
+        .btn:disabled { background: #444; cursor: not-allowed; }
 
-    .card {
-        background: #1E1E1E;
-        border-radius: 12px;
-        padding: 24px;
-        border: 1px solid #2a2a2a;
-    }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 
-    .card h2 {
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        color: #6B7C3F;
-        margin-bottom: 16px;
-        border-bottom: 1px solid #2a2a2a;
-        padding-bottom: 12px;
-    }
+        .card {
+            background: #1E1E1E;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #2a2a2a;
+        }
 
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.88rem;
-    }
+        .card h2 {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #6B7C3F;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #2a2a2a;
+            padding-bottom: 12px;
+        }
 
-    th {
-        text-align: left;
-        padding: 8px 10px;
-        color: #C9A84C;
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        border-bottom: 1px solid #2a2a2a;
-    }
+        table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
 
-    td {
-        padding: 10px 10px;
-        border-bottom: 1px solid #1f1f1f;
-        color: #F0EDE4;
-    }
+        th {
+            text-align: left;
+            padding: 8px 10px;
+            color: #C9A84C;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid #2a2a2a;
+        }
 
-    tr:hover td { background: #252525; }
+        td { padding: 10px; border-bottom: 1px solid #1f1f1f; color: #F0EDE4; }
+        tr:hover td { background: #252525; }
 
-    .urgency-HIGH { color: #8B2020; font-weight: 700; }
-    .urgency-MEDIUM { color: #C9A84C; font-weight: 600; }
-    .urgency-LOW { color: #6B7C3F; }
+        .urgency-HIGH   { color: #8B2020; font-weight: 700; }
+        .urgency-MEDIUM { color: #C9A84C; font-weight: 600; }
+        .urgency-LOW    { color: #6B7C3F; }
 
-    .compound-SOFT { 
-        background: #7a1f1f; color: #F0EDE4;
-        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
-    }
-    .compound-MEDIUM { 
-        background: #C9A84C; color: #0F0F0F;
-        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
-        font-weight: 600;
-    }
-    .compound-HARD { 
-        background: #3a3a3a; color: #F0EDE4;
-        padding: 2px 8px; border-radius: 4px; font-size: 0.75rem;
-    }
+        .compound-SOFT   { background: #7a1f1f; color: #F0EDE4; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+        .compound-MEDIUM { background: #C9A84C; color: #0F0F0F; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+        .compound-HARD   { background: #3a3a3a; color: #F0EDE4; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
 
-    .loading {
-        text-align: center;
-        padding: 40px;
-        color: #6B7C3F;
-        display: none;
-        letter-spacing: 1px;
-    }
+        .loading { text-align: center; padding: 40px; color: #6B7C3F; display: none; letter-spacing: 1px; }
 
-    .error {
-        background: #1a0a0a;
-        border: 1px solid #8B2020;
-        border-radius: 8px;
-        padding: 16px;
-        color: #cc4444;
-        display: none;
-        word-break: break-all;
-    }
+        .error {
+            background: #1a0a0a; border: 1px solid #8B2020;
+            border-radius: 8px; padding: 16px; color: #cc4444;
+            display: none; word-break: break-all;
+        }
 
-    .status-bar {
-        background: #1a1f0f;
-        border-radius: 8px;
-        padding: 12px 20px;
-        margin-bottom: 24px;
-        font-size: 0.85rem;
-        color: #888;
-        border: 1px solid #2a3a1a;
-    }
+        .status-bar {
+            background: #1a1f0f; border-radius: 8px;
+            padding: 12px 20px; margin-bottom: 24px;
+            font-size: 0.85rem; color: #888; border: 1px solid #2a3a1a;
+        }
 
-    .status-bar span { color: #C9A84C; font-weight: 600; }
+        .status-bar span { color: #C9A84C; font-weight: 600; }
 
-    .optimal-pit-badge {
-        display: inline-block;
-        background: #C9A84C;
-        color: #0F0F0F;
-        font-weight: 700;
-        font-size: 1.1rem;
-        padding: 4px 14px;
-        border-radius: 6px;
-        margin-left: 8px;
-    }
-</style> 
+        .optimal-pit-badge {
+            display: inline-block; background: #C9A84C; color: #0F0F0F;
+            font-weight: 700; font-size: 1.1rem; padding: 4px 14px;
+            border-radius: 6px; margin-left: 8px;
+        }
+    </style>
 </head>
 <body>
 
@@ -222,14 +181,11 @@
         <div class="control-group">
             <label>Lap Number — <span id="lapDisplay" style="color:#6B7C3F">15</span></label>
             <input type="range" id="lapInput" value="15" min="5" max="53"
-                oninput="document.getElementById('lapDisplay').textContent = this.value"
-                style="padding: 6px 0; cursor: pointer;">
-        </div> 
+                oninput="document.getElementById('lapDisplay').textContent = this.value">
+        </div>
         <div class="control-group">
             <label>Focus Driver</label>
-            <select id="driverSelect">
-                <option value="">Loading...</option>
-            </select>
+            <select id="driverSelect"><option value="">Loading...</option></select>
         </div>
         <div class="control-group">
             <label>Planned Pit Lap</label>
@@ -237,485 +193,381 @@
         </div>
         <div class="control-group">
             <label>Physics Engine</label>
-            <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-                <input type="checkbox" id="toggle2026" style="width: 18px; height: 18px; cursor: pointer; accent-color: #6B7C3F;">
-                <span style="font-size: 0.85rem; color: #F0EDE4; font-weight: 600;">2026 Active Aero</span>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:10px;">
+                <input type="checkbox" id="toggle2026" style="width:18px;height:18px;cursor:pointer;accent-color:#6B7C3F;">
+                <span style="font-size:0.85rem;color:#F0EDE4;font-weight:600;">2026 Active Aero</span>
             </div>
-        </div> 
+        </div>
         <div class="control-group">
-            <button class="btn" onclick="analyze()" id="analyzeBtn">
-                Analyze
-            </button>
+            <button class="btn" onclick="analyze()" id="analyzeBtn">Analyze</button>
         </div>
         <div class="control-group">
             <label>Live Race</label>
-            <button class="btn" id="playBtn" onclick="togglePlayback()" style="background: #C9A84C; color: #0F0F0F;">
-                ▶️ Auto-Advance
-            </button>
-        </div> 
+            <button class="btn" id="playBtn" onclick="togglePlayback()"
+                style="background:#C9A84C;color:#0F0F0F;">▶️ Auto-Advance</button>
+        </div>
     </div>
 
-    <div class="status-bar" id="statusBar">
-        Select a race and lap, then click Analyze.
-    </div>
-
+    <div class="status-bar" id="statusBar">Select a race and lap, then click Analyze.</div>
     <div class="error" id="errorBox"></div>
     <div class="loading" id="loadingBox">⏳ Running strategy analysis...</div>
 
     <div class="grid" id="resultsGrid" style="display:none">
         <div class="card">
             <h2>🔍 Tyre State — All Drivers</h2>
-            <table id="tyreTable">
-                <thead>
-                    <tr>
-                        <th>Driver</th>
-                        <th>Compound</th>
-                        <th>Age</th>
-                        <th>Avg Time</th>
-                        <th>Cliff</th>
-                        <th>Urgency</th>
-                    </tr>
-                </thead>
+            <table>
+                <thead><tr>
+                    <th>Driver</th><th>Compound</th><th>Age</th>
+                    <th>Avg Time</th><th>Cliff</th><th>Urgency</th>
+                </tr></thead>
                 <tbody id="tyreBody"></tbody>
             </table>
         </div>
-
         <div class="card">
             <h2>⚔️ Rival Response Analysis</h2>
-            <table id="rivalTable">
-                <thead>
-                    <tr>
-                        <th>Rival</th>
-                        <th>Cliff</th>
-                        <th>Urgency</th>
-                        <th>Battery SoC</th> <th>Can Cover</th>
-                        <th>Expected Response</th>
-                    </tr>
-                </thead>
+            <table>
+                <thead><tr>
+                    <th>Rival</th><th>Cliff</th><th>Urgency</th>
+                    <th>Battery SoC</th><th>Can Cover</th><th>Expected Response</th>
+                </tr></thead>
                 <tbody id="rivalBody"></tbody>
             </table>
-        </div> 
+        </div>
     </div>
 
-    <div class="card" id="pitChartCard" style="margin-top: 24px; display:none">
+    <div class="card" id="pitChartCard" style="margin-top:24px;display:none">
         <h2>📊 Pit Window Analysis — <span id="pitChartDriver"></span>
             <span class="optimal-pit-badge" id="optimalPitLap"></span>
         </h2>
-        <div style="text-align:center; padding: 16px 0;">
-            <img id="pitChartImg" src="" style="max-width:100%; border-radius:8px;">
+        <div style="text-align:center;padding:16px 0;">
+            <img id="pitChartImg" src="" style="max-width:100%;border-radius:8px;">
         </div>
-        <div style="text-align:center; margin-top:4px;">
-            <span style="color:#888; font-size:0.82rem;">
-                Green bars = time saved by pitting &nbsp;|&nbsp; Red bars = time lost by waiting
-            </span>
+        <div style="text-align:center;margin-top:4px;">
+            <span style="color:#888;font-size:0.82rem;">Green = time saved &nbsp;|&nbsp; Red = time lost</span>
         </div>
     </div>
 
-    <div class="card" id="strategyMapCard" style="margin-top: 24px; display:none">
+    <div class="card" id="strategyMapCard" style="margin-top:24px;display:none">
         <h2>🗺️ Race Strategy Map — <span id="strategyMapRace"></span></h2>
-        <div style="text-align:center; padding: 16px 0;">
-            <img id="strategyMapImg" src="" style="max-width:100%; border-radius:8px;">
+        <div style="text-align:center;padding:16px 0;">
+            <img id="strategyMapImg" src="" style="max-width:100%;border-radius:8px;">
         </div>
-        <div style="text-align:center; margin-top:4px;">
-            <span style="color:#888; font-size:0.82rem;">
-                S = Soft &nbsp;|&nbsp; M = Medium &nbsp;|&nbsp; H = Hard
-            </span>
+        <div style="text-align:center;margin-top:4px;">
+            <span style="color:#888;font-size:0.82rem;">S = Soft &nbsp;|&nbsp; M = Medium &nbsp;|&nbsp; H = Hard</span>
         </div>
-    </div> 
-    <div class="card" id="undercutCard" style="margin-top: 24px; display:none">
+    </div>
+
+    <div class="card" id="undercutCard" style="margin-top:24px;display:none">
         <h2>⚡ Undercut / Overcut Simulator — <span id="undercutDriver"></span></h2>
-        <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px;">
-            <span style="color:#888; font-size:0.85rem;">Assumed gap to rivals:</span>
-            <input type="number" id="gapInput" value="2.5" step="0.5" min="0" max="30"
-                style="width:80px; padding:6px 10px;">
-            <button class="btn" style="padding:8px 16px; font-size:0.85rem;"
-                onclick="loadUndercut()">Recalculate</button>
+        <div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">
+            <span style="color:#888;font-size:0.85rem;">Assumed gap:</span>
+            <input type="number" id="gapInput" value="2.5" step="0.5" min="0" max="30" style="width:80px;padding:6px 10px;">
+            <button class="btn" style="padding:8px 16px;font-size:0.85rem;width:auto;" onclick="loadUndercut()">Recalculate</button>
         </div>
         <table>
-            <thead>
-                <tr>
-                    <th>Rival</th>
-                    <th>Undercut Works</th>
-                    <th>UC Final Gap</th>
-                    <th>Overcut Works</th>
-                    <th>OC Final Gap</th>
-                    <th>Recommendation</th>
-                </tr>
-            </thead>
+            <thead><tr>
+                <th>Rival</th><th>Undercut Works</th><th>UC Final Gap</th>
+                <th>Overcut Works</th><th>OC Final Gap</th><th>Recommendation</th>
+            </tr></thead>
             <tbody id="undercutBody"></tbody>
         </table>
-    </div> 
+    </div>
 
-    <div class="card" id="driverProfileCard" style="margin-top: 24px; display:none">
+    <div class="card" id="driverProfileCard" style="margin-top:24px;display:none">
         <h2>👤 Driver Tyre Profile — <span id="profileDriverName"></span></h2>
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 20px;">
-            <div style="text-align:center; padding: 16px; background:#252525; border-radius:8px;">
-                <div style="color:#888; font-size:0.75rem; margin-bottom:8px;">OVERALL STYLE</div>
-                <div id="profileStyle" style="font-size:1.1rem; font-weight:700;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;margin-bottom:20px;">
+            <div style="text-align:center;padding:16px;background:#252525;border-radius:8px;">
+                <div style="color:#888;font-size:0.75rem;margin-bottom:8px;">OVERALL STYLE</div>
+                <div id="profileStyle" style="font-size:1.1rem;font-weight:700;"></div>
             </div>
-            <div style="text-align:center; padding: 16px; background:#252525; border-radius:8px;">
-                <div style="color:#888; font-size:0.75rem; margin-bottom:8px;">DEG RATE</div>
-                <div id="profileRate" style="font-size:1.1rem; font-weight:700; color:#C9A84C;"></div>
+            <div style="text-align:center;padding:16px;background:#252525;border-radius:8px;">
+                <div style="color:#888;font-size:0.75rem;margin-bottom:8px;">DEG RATE</div>
+                <div id="profileRate" style="font-size:1.1rem;font-weight:700;color:#C9A84C;"></div>
             </div>
-            <div style="text-align:center; padding: 16px; background:#252525; border-radius:8px;">
-                <div style="color:#888; font-size:0.75rem; margin-bottom:8px;">FIELD AVG</div>
-                <div id="profileFieldAvg" style="font-size:1.1rem; font-weight:700; color:#6B7C3F;"></div>
+            <div style="text-align:center;padding:16px;background:#252525;border-radius:8px;">
+                <div style="color:#888;font-size:0.75rem;margin-bottom:8px;">FIELD AVG</div>
+                <div id="profileFieldAvg" style="font-size:1.1rem;font-weight:700;color:#6B7C3F;"></div>
             </div>
-            <div style="text-align:center; padding: 16px; background:#252525; border-radius:8px;">
-                <div style="color:#888; font-size:0.75rem; margin-bottom:8px;">PERCENTILE</div>
-                <div id="profilePercentile" style="font-size:1.1rem; font-weight:700;"></div>
+            <div style="text-align:center;padding:16px;background:#252525;border-radius:8px;">
+                <div style="color:#888;font-size:0.75rem;margin-bottom:8px;">PERCENTILE</div>
+                <div id="profilePercentile" style="font-size:1.1rem;font-weight:700;"></div>
             </div>
         </div>
         <table>
-            <thead>
-                <tr>
-                    <th>Compound</th>
-                    <th>Deg Rate (s/lap)</th>
-                    <th>Style</th>
-                    <th>vs Field</th>
-                </tr>
-            </thead>
+            <thead><tr>
+                <th>Compound</th><th>Deg Rate (s/lap)</th><th>Style</th><th>vs Field</th>
+            </tr></thead>
             <tbody id="profileCompoundBody"></tbody>
         </table>
-    </div> 
+    </div>
 
 </div>
 
 <script>
-    
-    // --- THE BULLETPROOF BLOB LOADER ---
-    // This bypasses Safari's strict Data URI parser completely
-    function updateImageSmoothly(imgElementId, base64Data) {
+    // ── State ──────────────────────────────────────────────────────────────
+    let isLivePlayback = false;
+
+    // ── Blob-based image renderer (Safari compatible) ──────────────────────
+    function updateImageSmoothly(imgId, base64Data) {
         try {
-            // 1. Force absolute cleanliness
-            let cleanStr = String(base64Data).replace(/[^A-Za-z0-9+/=]/g, '');
-            
-            // 2. Ensure perfect padding (Safari hates missing padding)
-            let unpadded = cleanStr.replace(/=+$/, '');
-            while (unpadded.length % 4 !== 0) {
-                unpadded += '=';
-            }
-            
-            // 3. Convert to Byte Array and Blob (Bypasses URI parsing)
-            const byteChars = atob(unpadded);
-            const byteNums = new Array(byteChars.length);
-            for (let i = 0; i < byteChars.length; i++) {
-                byteNums[i] = byteChars.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNums);
-            const blob = new Blob([byteArray], {type: 'image/png'});
-            
-            // 4. Assign Memory Pointer
-            document.getElementById(imgElementId).src = URL.createObjectURL(blob);
-            
+            let clean = String(base64Data).replace(/[^A-Za-z0-9+/=]/g, '');
+            let s = clean.replace(/=+$/, '');
+            while (s.length % 4 !== 0) s += '=';
+            const raw = atob(s);
+            const arr = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+            document.getElementById(imgId).src =
+                URL.createObjectURL(new Blob([arr], { type: 'image/png' }));
         } catch (e) {
-            console.warn("Blob conversion skipped, attempting direct render.");
-            // Absolute last resort fallback
-            document.getElementById(imgElementId).src = 'data:image/png;base64,' + String(base64Data).replace(/\s/g, '');
+            document.getElementById(imgId).src =
+                'data:image/png;base64,' + String(base64Data).replace(/\s/g, '');
         }
     }
-    
-    async function loadDriverProfile() {
-        const driver = document.getElementById('driverSelect').value;
-        
-        const res = await fetch(`/api/driver_profile/${encodeURIComponent(driver)}`);
-        const data = await res.json();
-        
-        if (data.error) return;
-        
-        const styleColors = {
-            'VERY GENTLE': '#6B7C3F',
-            'GENTLE': '#8fa854',
-            'AVERAGE': '#C9A84C',
-            'HARD': '#cc7722',
-            'VERY HARD': '#8B2020'
-        };
-        
-        const color = styleColors[data.overall_style] || '#F0EDE4';
-        
-        document.getElementById('profileDriverName').textContent = driver;
-        document.getElementById('profileStyle').innerHTML = 
-            `<span style="color:${color}">${data.overall_style}</span>`;
-        document.getElementById('profileRate').textContent = 
-            `${data.overall_rate}s/lap`;
-        document.getElementById('profileFieldAvg').textContent = 
-            `${data.field_avg}s/lap`;
-        document.getElementById('profilePercentile').textContent = 
-            `Top ${100 - data.percentile}%`;
-        
-        const compoundColors = {
-            'SOFT': '#7a1f1f', 'MEDIUM': '#C9A84C', 'HARD': '#3a3a3a'
-        };
-        
-        document.getElementById('profileCompoundBody').innerHTML = 
-            Object.entries(data.compounds).map(([compound, info]) => `
-                <tr>
-                    <td><span class="compound-${compound}">${compound}</span></td>
-                    <td style="color:#C9A84C">${info.rate}s/lap</td>
-                    <td><span style="color:${styleColors[info.style] || '#F0EDE4'}">${info.style}</span></td>
-                    <td>${info.rate < data.field_avg ? 
-                        '<span style="color:#6B7C3F">↓ Gentler</span>' : 
-                        '<span style="color:#8B2020">↑ Harder</span>'}</td>
-                </tr>
-            `).join('');
-        
-        document.getElementById('driverProfileCard').style.display = 'block';
-    } 
-    
-    async function loadUndercut() {
-        const race = document.getElementById('raceSelect').value;
-        const lap = document.getElementById('lapInput').value;
-        const driver = document.getElementById('driverSelect').value;
-        const gap = document.getElementById('gapInput').value;
-        
-        const is_2026 = document.getElementById('toggle2026').checked;
 
-        const res = await fetch('/api/undercut', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({race, lap, driver, gap, is_2026})
-        });
-        const data = await res.json();
-
-        if (data.results) {
-            const body = document.getElementById('undercutBody');
-            body.innerHTML = data.results.map(r => `
-                <tr>
-                    <td><strong>${r.Rival}</strong></td>
-                    <td>${r.UnderCutWorks ? '✅' : '❌'}</td>
-                    <td style="color:${r.UnderCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">
-                        ${r.UnderCutFinalGap}s</td>
-                    <td>${r.OverCutWorks ? '✅' : '❌'}</td>
-                    <td style="color:${r.OverCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">
-                        ${r.OverCutFinalGap}s</td>
-                    <td><strong style="color:#C9A84C">${r.Recommendation}</strong></td>
-                </tr>
-            `).join('');
-
-            document.getElementById('undercutDriver').textContent = driver;
-            document.getElementById('undercutCard').style.display = 'block';
-        }
-    } 
-
-    async function loadStrategyMap() {
-        const race = document.getElementById('raceSelect').value;
-
-        const res = await fetch('/api/strategy_map', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({race})
-        });
-        const data = await res.json();
-
-        if (data.chart) {
-            updateImageSmoothly('strategyMapImg', data.chart); 
-            document.getElementById('strategyMapRace').textContent = String(race).split('_').join(' '); 
-            document.getElementById('strategyMapCard').style.display = 'block';
-        } 
-    } 
-
+    // ── Load Drivers ───────────────────────────────────────────────────────
     async function loadDrivers() {
         const race = document.getElementById('raceSelect').value;
-        const res = await fetch(`/api/drivers/${race}`);
-        const data = await res.json();
-        const sel = document.getElementById('driverSelect');
-        sel.innerHTML = data.drivers.map(d => 
-            `<option value="${d}">${d}</option>`
-        ).join('');
+        const data = await (await fetch(`/api/drivers/${race}`)).json();
+        document.getElementById('driverSelect').innerHTML =
+            data.drivers.map(d => `<option value="${d}">${d}</option>`).join('');
 
-        // Reset all panels when race changes
-        document.getElementById('resultsGrid').style.display = 'none';
-        document.getElementById('pitChartCard').style.display = 'none';
-        document.getElementById('strategyMapCard').style.display = 'none';
-        document.getElementById('undercutCard').style.display = 'none';
-        document.getElementById('statusBar').textContent = 
-            'Select a race and lap, then click Analyze.';
-    } 
-
-    async function loadPitChart() {
-        const race = document.getElementById('raceSelect').value;
-        const lap = document.getElementById('lapInput').value;
-        const driver = document.getElementById('driverSelect').value;
-
-        const res = await fetch('/api/pit_chart', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({race, lap, driver})
+        ['resultsGrid','pitChartCard','strategyMapCard',
+         'undercutCard','driverProfileCard'].forEach(id => {
+            document.getElementById(id).style.display = 'none';
         });
-        const data = await res.json();
-
-        if (data.chart) {
-            updateImageSmoothly('pitChartImg', data.chart); 
-            document.getElementById('pitChartDriver').textContent = driver;
-            document.getElementById('optimalPitLap').textContent =
-                data.optimal_pit ? 'Optimal: Lap ' + data.optimal_pit : 'N/A';
-            document.getElementById('pitChartCard').style.display = 'block';
-            
-            // Inject Model Tier Badge into Status Bar
-            const statusBar = document.getElementById('statusBar');
-            let icon = "⚙️";
-            if (data.model_tier && data.model_tier.includes("Track")) icon = "🏁";
-            else if (data.model_tier && data.model_tier.includes("Compound")) icon = "🧪";
-            
-            statusBar.innerHTML += `
-                <span style="float: right; background: #252525; padding: 3px 12px; border-radius: 6px; color: #C9A84C; font-size: 0.85rem; border: 1px solid #3a3a3a; margin-top: -2px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
-                    ${icon} Intelligence: ${data.model_tier}
-                </span>`;
-        } 
+        document.getElementById('statusBar').textContent =
+            'Select a race and lap, then click Analyze.';
     }
 
-    async function analyze() {
-        const race = document.getElementById('raceSelect').value;
-        const lap = document.getElementById('lapInput').value;
+    // ── Pit Chart ─────────────────────────────────────────────────────────
+    async function loadPitChart() {
+        const race   = document.getElementById('raceSelect').value;
+        const lap    = document.getElementById('lapInput').value;
         const driver = document.getElementById('driverSelect').value;
-        const pitLap = document.getElementById('pitLapInput').value;
-
-        const isLive = playbackInterval !== null;
-
-        if (!isLive) {
-            document.getElementById('loadingBox').style.display = 'block';
-            document.getElementById('resultsGrid').style.display = 'none';
-            document.getElementById('pitChartCard').style.display = 'none';
-            document.getElementById('errorBox').style.display = 'none';
-            document.getElementById('strategyMapCard').style.display = 'none'; 
-            document.getElementById('undercutCard').style.display = 'none'; 
-            document.getElementById('driverProfileCard').style.display = 'none'; 
+        const data   = await (await fetch('/api/pit_chart', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ race, lap, driver })
+        })).json();
+        if (!data.chart) return;
+        updateImageSmoothly('pitChartImg', data.chart);
+        document.getElementById('pitChartDriver').textContent = driver;
+        document.getElementById('optimalPitLap').textContent =
+            data.optimal_pit ? 'Optimal: Lap ' + data.optimal_pit : 'N/A';
+        document.getElementById('pitChartCard').style.display = 'block';
+        if (data.model_tier) {
+            const icon = data.model_tier.includes('Track') ? '🏁' :
+                         data.model_tier.includes('Compound') ? '🧪' : '⚙️';
+            document.getElementById('statusBar').innerHTML +=
+                `<span style="float:right;background:#252525;padding:3px 12px;
+                 border-radius:6px;color:#C9A84C;font-size:0.85rem;
+                 border:1px solid #3a3a3a;">${icon} ${data.model_tier}</span>`;
         }
-        
-        document.getElementById('analyzeBtn').disabled = true; 
+    }
+
+    // ── Strategy Map ──────────────────────────────────────────────────────
+    async function loadStrategyMap() {
+        const race = document.getElementById('raceSelect').value;
+        const data = await (await fetch('/api/strategy_map', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ race })
+        })).json();
+        if (!data.chart) return;
+        updateImageSmoothly('strategyMapImg', data.chart);
+        document.getElementById('strategyMapRace').textContent = race.split('_').join(' ');
+        document.getElementById('strategyMapCard').style.display = 'block';
+    }
+
+    // ── Undercut / Overcut ────────────────────────────────────────────────
+    async function loadUndercut() {
+        const race    = document.getElementById('raceSelect').value;
+        const lap     = document.getElementById('lapInput').value;
+        const driver  = document.getElementById('driverSelect').value;
+        const gap     = document.getElementById('gapInput').value;
+        const is_2026 = document.getElementById('toggle2026').checked;
+        const data    = await (await fetch('/api/undercut', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ race, lap, driver, gap, is_2026 })
+        })).json();
+        if (!data.results) return;
+        document.getElementById('undercutBody').innerHTML = data.results.map(r => `
+            <tr>
+                <td><strong>${r.Rival}</strong></td>
+                <td>${r.UnderCutWorks ? '✅' : '❌'}</td>
+                <td style="color:${r.UnderCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">${r.UnderCutFinalGap}s</td>
+                <td>${r.OverCutWorks ? '✅' : '❌'}</td>
+                <td style="color:${r.OverCutFinalGap < 0 ? '#6B7C3F' : '#8B2020'}">${r.OverCutFinalGap}s</td>
+                <td><strong style="color:#C9A84C">${r.Recommendation}</strong></td>
+            </tr>`).join('');
+        document.getElementById('undercutDriver').textContent = driver;
+        document.getElementById('undercutCard').style.display = 'block';
+    }
+
+    // ── Driver Profile ────────────────────────────────────────────────────
+    async function loadDriverProfile() {
+        const driver = document.getElementById('driverSelect').value;
+        const data   = await (await fetch(`/api/driver_profile/${encodeURIComponent(driver)}`)).json();
+        if (data.error) return;
+        const styleColors = {
+            'VERY GENTLE':'#6B7C3F','GENTLE':'#8fa854',
+            'AVERAGE':'#C9A84C','HARD':'#cc7722','VERY HARD':'#8B2020'
+        };
+        document.getElementById('profileDriverName').textContent = driver;
+        document.getElementById('profileStyle').innerHTML =
+            `<span style="color:${styleColors[data.overall_style]||'#F0EDE4'}">${data.overall_style}</span>`;
+        document.getElementById('profileRate').textContent = `${data.overall_rate}s/lap`;
+        document.getElementById('profileFieldAvg').textContent = `${data.field_avg}s/lap`;
+        document.getElementById('profilePercentile').textContent = `Top ${100 - data.percentile}%`;
+        document.getElementById('profileCompoundBody').innerHTML =
+            Object.entries(data.compounds).map(([c, info]) => `
+                <tr>
+                    <td><span class="compound-${c}">${c}</span></td>
+                    <td style="color:#C9A84C">${info.rate}s/lap</td>
+                    <td><span style="color:${styleColors[info.style]||'#F0EDE4'}">${info.style}</span></td>
+                    <td>${info.rate < data.field_avg ?
+                        '<span style="color:#6B7C3F">↓ Gentler</span>' :
+                        '<span style="color:#8B2020">↑ Harder</span>'}</td>
+                </tr>`).join('');
+        document.getElementById('driverProfileCard').style.display = 'block';
+    }
+
+    // ── Main Analyze ──────────────────────────────────────────────────────
+    async function analyze() {
+        const race    = document.getElementById('raceSelect').value;
+        const lap     = document.getElementById('lapInput').value;
+        const driver  = document.getElementById('driverSelect').value;
+        const pitLap  = document.getElementById('pitLapInput').value;
+        const is_2026 = document.getElementById('toggle2026').checked;
+
+        if (!isLivePlayback) {
+            ['resultsGrid','pitChartCard','strategyMapCard',
+             'undercutCard','driverProfileCard'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+            document.getElementById('loadingBox').style.display = 'block';
+            document.getElementById('errorBox').style.display = 'none';
+        }
+        document.getElementById('analyzeBtn').disabled = true;
 
         try {
-            const analysisRes = await fetch('/api/analyze', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({race, lap})
-            });
-            const analysisData = await analysisRes.json();
+            const [aRes, sRes] = await Promise.all([
+                fetch('/api/analyze', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ race, lap })
+                }),
+                fetch('/api/strategy', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({ race, lap, driver, pit_lap: pitLap, is_2026 })
+                })
+            ]);
+            const aData = await aRes.json();
+            const sData = await sRes.json();
 
-            // 1. Grab the 2026 toggle state
-            const is_2026 = document.getElementById('toggle2026').checked;
-
-            // 2. Pass it into the Strategy API!
-            const strategyRes = await fetch('/api/strategy', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({race, lap, driver, pit_lap: pitLap, is_2026: is_2026}) 
-            });
-            const strategyData = await strategyRes.json(); 
-
-            const tyreBody = document.getElementById('tyreBody');
-            tyreBody.innerHTML = analysisData.drivers.map(d => `
-                <tr>
-                    <td><strong>${d.Driver}</strong></td>
-                    <td><span class="compound-${d.Compound}">${d.Compound}</span></td>
-                    <td>${d.TyreLife}</td>
-                    <td>${d.AvgLapTime}s</td>
-                    <td>${d.PredictedCliff}</td>
-                    <td><span class="urgency-${d.Urgency}">${d.Urgency}</span></td>
-                </tr>
-            `).join('');
-
-            // Render rival table (2026 ENERGY WAR UPGRADE)
-            const rivalBody = document.getElementById('rivalBody');
-            if (strategyData.rival_responses && strategyData.rival_responses.length > 0) {
-                rivalBody.innerHTML = strategyData.rival_responses.map(r => {
-                    
-                    // 1. Dynamic color coding for the 2026 Response Action
-                    let responseColor = '#F0EDE4'; // Default off-white
-                    if (r.ExpectedResponse.includes('DEFEND')) responseColor = '#C9A84C'; // Gold for 350kW Override
-                    if (r.ExpectedResponse.includes('HARVEST')) responseColor = '#6B7C3F'; // Green for saving energy
-                    if (r.ExpectedResponse.includes('COVER')) responseColor = '#8B2020'; // Red for pitting
-                    
-                    // 2. Battery SoC Styling with Lightning Icon
-                    let socHtml = r.Estimated_SoC;
-                    if (socHtml !== "N/A") {
-                        const socValue = parseInt(socHtml);
-                        const socColor = socValue > 65 ? '#6B7C3F' : (socValue < 30 ? '#8B2020' : '#C9A84C');
-                        socHtml = `<span style="color: ${socColor}; font-weight: 700;">⚡ ${r.Estimated_SoC}</span>`;
-                    } else {
-                        socHtml = `<span style="color: #555;">${r.Estimated_SoC}</span>`;
-                    }
-
-                    return `
+            // Tyre table
+            document.getElementById('tyreBody').innerHTML =
+                aData.drivers.map(d => `
                     <tr>
+                        <td><strong>${d.Driver}</strong></td>
+                        <td><span class="compound-${d.Compound}">${d.Compound}</span></td>
+                        <td>${d.TyreLife}</td>
+                        <td>${d.AvgLapTime}s</td>
+                        <td>${d.PredictedCliff}</td>
+                        <td><span class="urgency-${d.Urgency}">${d.Urgency}</span></td>
+                    </tr>`).join('');
+
+            // Rival table
+            const rivalBody = document.getElementById('rivalBody');
+            if (sData.rival_responses && sData.rival_responses.length > 0) {
+                rivalBody.innerHTML = sData.rival_responses.map(r => {
+                    let rc = '#F0EDE4';
+                    if (r.ExpectedResponse && r.ExpectedResponse.includes('DEFEND'))  rc = '#C9A84C';
+                    if (r.ExpectedResponse && r.ExpectedResponse.includes('HARVEST')) rc = '#6B7C3F';
+                    if (r.ExpectedResponse && r.ExpectedResponse.includes('COVER'))   rc = '#8B2020';
+                    const soc = r.Estimated_SoC && r.Estimated_SoC !== 'N/A'
+                        ? (() => { const v=parseInt(r.Estimated_SoC);
+                                   const c=v>65?'#6B7C3F':v<30?'#8B2020':'#C9A84C';
+                                   return `<span style="color:${c};font-weight:700;">⚡ ${r.Estimated_SoC}</span>`; })()
+                        : '<span style="color:#555;">N/A</span>';
+                    return `<tr>
                         <td><strong>${r.Rival}</strong></td>
                         <td>${r.RivalCliff}</td>
                         <td><span class="urgency-${r.RivalUrgency}">${r.RivalUrgency}</span></td>
-                        <td>${socHtml}</td> <td>${r.CanCover ? '✅' : '❌'}</td>
-                        <td style="color: ${responseColor}; font-weight: 600;">${r.ExpectedResponse}</td>
-                    </tr>
-                `}).join('');
-            } else {
-                rivalBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" style="color:#888; text-align:center; padding:20px;">
-                            No rival data available for this driver at this lap.
-                        </td>
+                        <td>${soc}</td>
+                        <td>${r.CanCover ? '✅' : '❌'}</td>
+                        <td style="color:${rc};font-weight:600;">${r.ExpectedResponse}</td>
                     </tr>`;
-            } 
+                }).join('');
+            } else {
+                rivalBody.innerHTML = `<tr><td colspan="6" style="color:#888;text-align:center;padding:20px;">
+                    No rival data available.</td></tr>`;
+            }
 
-            const cleanRaceName = String(race).split('_').join(' ');
-            document.getElementById('statusBar').innerHTML = 
-                `Showing analysis for <span>${cleanRaceName}</span> 
-                at <span>Lap ${lap}</span> — 
-                Focus driver: <span>${driver}</span> 
-                planning pit at <span>Lap ${pitLap}</span>`;
+            document.getElementById('statusBar').innerHTML =
+                `Showing <span>${race.split('_').join(' ')}</span>
+                 Lap <span>${lap}</span> —
+                 Driver: <span>${driver}</span>
+                 Pit plan: <span>Lap ${pitLap}</span>`;
 
             document.getElementById('resultsGrid').style.display = 'grid';
 
-            // DEFENSIVE EXECUTION: If one module fails, keep the rest running
-            try { await loadPitChart(); } catch (e) { console.error("Chart failed", e); }
-            try { await loadStrategyMap(); } catch (e) { console.error("Map failed", e); }
-            try { await loadUndercut(); } catch (e) { console.error("Undercut failed", e); }
-            try { await loadDriverProfile(); } catch (e) { console.error("Profile failed", e); }
+            try { await loadPitChart(); }      catch(e){ console.error('Chart',e); }
+            try { await loadStrategyMap(); }   catch(e){ console.error('Map',e); }
+            try { await loadUndercut(); }      catch(e){ console.error('Undercut',e); }
+            try { await loadDriverProfile(); } catch(e){ console.error('Profile',e); }
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
-            document.getElementById('errorBox').textContent = 
-                'Error running analysis: ' + err.message;
+            document.getElementById('errorBox').textContent = 'Error: ' + err.message;
+            console.error(err);
         }
 
         document.getElementById('loadingBox').style.display = 'none';
         document.getElementById('analyzeBtn').disabled = false;
     }
 
-    // --- TASK 5: LIVE PLAYBACK STATE MACHINE ---
-    let playbackInterval = null;
+    // ── WebSocket ─────────────────────────────────────────────────────────
+    const socket = io(window.location.origin);
 
-    function togglePlayback() {
+    socket.on('connect', () => console.log('WebSocket connected:', socket.id));
+    socket.on('connect_error', e => console.error('WebSocket failed:', e));
+
+    socket.on('timing_beam_trigger', async (data) => {
+        console.log('Timing beam — Lap:', data.new_lap);
+        const inp = document.getElementById('lapInput');
+        const disp = document.getElementById('lapDisplay');
+        if (inp && disp) {
+            inp.value = data.new_lap;
+            disp.textContent = data.new_lap;
+            try { await analyze(); } catch(e){ console.error('Analyze crash:', e); }
+        }
+    });
+
+    // ── Playback Toggle ───────────────────────────────────────────────────
+    async function togglePlayback() {
         const btn = document.getElementById('playBtn');
-        const lapInput = document.getElementById('lapInput');
-        const maxLaps = parseInt(lapInput.max);
+        const inp = document.getElementById('lapInput');
+        isLivePlayback = !isLivePlayback;
 
-        if (playbackInterval) {
-            clearInterval(playbackInterval);
-            playbackInterval = null;
+        if (!isLivePlayback) {
             btn.innerHTML = '▶️ Auto-Advance';
             btn.style.background = '#C9A84C';
             btn.style.color = '#0F0F0F';
+            socket.emit('toggle_live_timing', { is_playing: false });
         } else {
             btn.innerHTML = '⏸️ Pause';
             btn.style.background = '#8B2020';
             btn.style.color = '#F0EDE4';
-
-            playbackInterval = setInterval(async () => {
-                let currentLap = parseInt(lapInput.value);
-                
-                if (currentLap < maxLaps) {
-                    currentLap++;
-                    lapInput.value = currentLap;
-                    document.getElementById('lapDisplay').textContent = currentLap;
-                    
-                    await analyze();
-                } else {
-                    togglePlayback();
-                }
-            }, 4000); 
+            try { await analyze(); } catch(e){ console.error('Initial analyze:', e); }
+            socket.emit('toggle_live_timing', {
+                is_playing: true,
+                lap: parseInt(inp ? inp.value : '1') || 1,
+                max_laps: parseInt(inp ? inp.max : '100') || 100
+            });
         }
-    } 
-    
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────
     loadDrivers();
 </script>
 
 </body>
-</html>
+</html> 

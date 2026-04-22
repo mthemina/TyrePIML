@@ -1,11 +1,18 @@
+import gevent.monkey
+gevent.monkey.patch_all() 
+
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="gevent.monkey") 
+
 from flask import Flask, jsonify, request, render_template
+from flask_socketio import SocketIO, emit
 import torch
 import pandas as pd
 import sys
 import os
 import numpy as np 
 import json 
-from functools import lru_cache
+from functools import lru_cache 
 
 # Make sure src is importable
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -18,6 +25,8 @@ from src.strategy_simulator import simulate_undercut, simulate_overcut
 from src.plot_pit_window import plot_pit_window
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'pitwall_super_secret'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent') # <-- CHANGED HERE 
 
 # Load models at startup
 print("Loading models...")
@@ -533,5 +542,52 @@ def driver_profile(driver):
     except FileNotFoundError:
         return jsonify({'error': 'Profiles not built yet'}), 404 
 
+# --- TASK 1: WEBSOCKET TIMING BEAM (LIVE PUSH) ---
+active_sessions = {}
+
+@socketio.on('connect')
+def handle_connect():
+    print("Pit wall client connected to live telemetry stream.")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    # Use getattr to appease Pylance's strict type checking
+    sid = getattr(request, 'sid', None)
+    if sid and sid in active_sessions:
+        active_sessions[sid] = False
+
+@socketio.on('toggle_live_timing')
+def toggle_live_timing(data):
+    sid = getattr(request, 'sid', None)
+    is_playing = data.get('is_playing')
+    
+    if sid:
+        if is_playing:
+            active_sessions[sid] = True
+            # Spawn the background thread for this specific user
+            socketio.start_background_task(timing_beam_loop, sid, data)
+        else:
+            active_sessions[sid] = False
+
+def timing_beam_loop(sid, data):
+    """Simulates the hardware timing beam triggering at the start/finish line."""
+    # BULLETPROOFING: If JS sends NaN/None, default to Lap 1 and Max 100
+    try:
+        lap = int(data.get('lap') or 1)
+        max_laps = int(data.get('max_laps') or 100)
+    except (ValueError, TypeError):
+        lap = 1
+        max_laps = 100
+    
+    while active_sessions.get(sid) and lap < max_laps:
+        socketio.sleep(3) 
+        
+        if not active_sessions.get(sid):
+            break
+            
+        lap += 1
+        socketio.emit('timing_beam_trigger', {'new_lap': lap}, to=sid) 
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000) 
+    # We now run socketio.run instead of app.run to enable WebSockets
+    socketio.run(app, debug=True, use_reloader=False, port=5000)  
