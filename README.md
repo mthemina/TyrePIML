@@ -87,6 +87,7 @@ PYTHONPATH=. python app/app.py               # Launch dashboard
 ---
 
 ## Project Structure 
+
 TyrePIML/
 ├── data/              # Race CSVs (118 races, 2018–2024)
 ├── models/
