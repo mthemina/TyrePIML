@@ -1,114 +1,155 @@
-import sys
-import os
-
-# 1. Force Python to recognize the project root FIRST
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# 2. THEN do the rest of the imports
 import torch
-import numpy as np
 import pandas as pd
-from src.model import TyreLSTM 
-from src.cliff_detector import prepare_sequence
-from src.dataset import denormalize, LAP_TIME_MIN, LAP_TIME_MAX 
+import numpy as np
+import glob
+from torch.utils.data import DataLoader
+from src.dataset import TyreDataset, denormalize, LAP_TIME_MIN, LAP_TIME_MAX
+from src.model import TyreLSTM
+from src.compound_models import CompoundDataset
+from src.track_models import TrackDataset
 
-def load_eval_model(path, device):
-    """Safely load a model dynamically to test MAE."""
-    if not os.path.exists(path):
-        return None
-    
-    state_dict = torch.load(path, map_location=device)
-    
-    if 'lstm.weight_ih_l0' in state_dict:
-        weight_shape = state_dict['lstm.weight_ih_l0'].shape
-        in_size = weight_shape[1]
-        hid_size = weight_shape[0] // 4
-        layers = sum(1 for k in state_dict.keys() if 'weight_ih_l' in k)
-    else:
-        return None
-        
-    model = TyreLSTM(input_size=in_size, hidden_size=hid_size, num_layers=layers)
-    model.load_state_dict(state_dict)
-    model.to(device)
+def evaluate_model(model, dataloader, input_size):
+    """Evaluate a model on a dataloader and return MAE in seconds."""
     model.eval()
-    return model
+    all_preds = []
+    all_targets = []
+    
+    with torch.no_grad():
+        for x, y in dataloader:
+            # Handle input size mismatch
+            if x.shape[2] != input_size:
+                x = x[:, :, :input_size]
+            preds = model(x)
+            all_preds.extend(preds.numpy())
+            all_targets.extend(y.numpy())
+    
+    pred_sec = [denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX) for p in all_preds]
+    true_sec = [denormalize(t, LAP_TIME_MIN, LAP_TIME_MAX) for t in all_targets]
+    mae = np.mean(np.abs(np.array(pred_sec) - np.array(true_sec)))
+    return round(float(mae), 4)
 
-def evaluate_models(race_file, target_driver, target_stint):
-    """Run head-to-head comparison on a specific stint."""
-    device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    print(f"Running evaluation on {device.type.upper()}...")
 
-    # Load Data
-    df = pd.read_csv(race_file)
+def run_comparison():
+    print("Loading models...")
     
-    # Intelligently parse the track name directly from the filename
-    # e.g., 'data/2023_Monza.csv' -> '2023_Monza' -> 'Monza'
-    base_name = os.path.basename(race_file).replace('.csv', '')
-    track_name = base_name.split('_', 1)[1] if '_' in base_name else base_name 
-    stint_df = df[(df['Driver'] == target_driver) & (df['Stint'] == target_stint)].reset_index(drop=True)
+    # Generic model
+    generic = TyreLSTM(input_size=9, hidden_size=128, num_layers=2)
+    generic.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
     
-    if len(stint_df) < 5:
-        print("Not enough laps in stint for evaluation.")
-        return
-        
-    compound = stint_df['Compound'].iloc[-1].lower()
+    # Compound models
+    compound_mdls = {}
+    for c in ['SOFT', 'MEDIUM', 'HARD']:
+        m = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+        m.load_state_dict(torch.load(f'models/tyre_lstm_{c.lower()}_v1.pt'))
+        compound_mdls[c] = m
     
-    # Model Paths
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    generic_path = os.path.join(base_dir, "models", "tyre_lstm_piml_v2.pt")
-    compound_path = os.path.join(base_dir, "models", f"tyre_lstm_{compound}_v1.pt")
-    track_path = os.path.join(base_dir, "models", "tracks", f"{track_name.replace(' ', '_')}.pt")
+    # Track models
+    import json, os
+    with open('models/tracks/registry.json') as f:
+        registry = json.load(f)
+    track_mdls = {}
+    for track, info in registry.items():
+        if os.path.exists(info['path']):
+            m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
+            m.load_state_dict(torch.load(info['path']))
+            track_mdls[track] = m
     
-    # Load Models
-    models = {
-        "Generic (118 Races)": load_eval_model(generic_path, device),
-        f"Compound ({compound.upper()})": load_eval_model(compound_path, device),
-        f"Track ({track_name})": load_eval_model(track_path, device)
-    }
+    print(f"Generic model: 1")
+    print(f"Compound models: {len(compound_mdls)}")
+    print(f"Track models: {len(track_mdls)}")
     
-    actual_lap_times = stint_df['LapTime'].values
+    # Test on 5 held-out races
+    test_races = [
+        '2023_Monza', '2023_Silverstone', '2023_Spa',
+        '2022_Monza', '2022_Silverstone'
+    ]
     
-    print(f"\n--- MAE EVALUATION: {track_name} | {target_driver} | Compound: {compound.upper()} ---")
-    print(f"{'Model Tier':<25} | {'MAE (Seconds)':<15} | {'Improvement vs Generic'}")
+    print(f"\n{'Race':<25} {'Generic':>10} {'Compound':>10} {'Track':>10} {'Best':>10}")
     print("-" * 70)
     
-    baseline_mae = None
+    results = []
     
-    for tier_name, model in models.items():
-        if model is None:
-            print(f"{tier_name:<25} | {'NOT FOUND':<15} | N/A")
+    for race in test_races:
+        filepath = f'data/{race}.csv'
+        if not os.path.exists(filepath):
             continue
-            
-        # Get dynamic sequence (safely handles 8 vs 9 features)
-        sequence = prepare_sequence(model, stint_df)
         
-        predictions = []
-        with torch.no_grad():
-            # NEW: Sliding window approach to preserve the 3D tensor shape (Batch, Seq_Len, Features)
-            for i in range(len(sequence)):
-                # Grab up to 5 laps of historical context
-                start_idx = max(0, i - 4)
-                seq_window = sequence[start_idx:i+1]
-                
-                # Shape becomes (1, Window_Length, Features)
-                x = torch.tensor(seq_window).unsqueeze(0).to(device)
-                
-                pred_norm = model(x).item()
-                pred_sec = denormalize(pred_norm, LAP_TIME_MIN, LAP_TIME_MAX)
-                predictions.append(pred_sec)
-                
-        # Calculate Mean Absolute Error
-        mae = np.mean(np.abs(np.array(predictions) - actual_lap_times))
+        df = pd.read_csv(filepath)
         
-        if baseline_mae is None:
-            baseline_mae = mae
-            improvement = "Baseline"
-        else:
-            pct_improvement = ((baseline_mae - mae) / baseline_mae) * 100
-            improvement = f"+{pct_improvement:.1f}%" if pct_improvement > 0 else f"{pct_improvement:.1f}%"
-            
-        print(f"{tier_name:<25} | {mae:.3f}s{'':<10} | {improvement}") 
+        # Generic MAE
+        from src.dataset import TyreDataset
+        import tempfile, shutil
+        tmpdir = tempfile.mkdtemp()
+        shutil.copy(filepath, f"{tmpdir}/{race}.csv")
+        
+        try:
+            ds = TyreDataset(data_path=f"{tmpdir}/", sequence_length=5)
+            loader = DataLoader(ds, batch_size=32)
+            generic_mae = evaluate_model(generic, loader, 9)
+        except:
+            generic_mae = None
+        
+        # Compound MAE — average across compounds present
+        compound_maes = []
+        for compound in df['Compound'].unique():
+            if compound not in compound_mdls:
+                continue
+            try:
+                ds = CompoundDataset(compound, data_path=f"{tmpdir}/")
+                if len(ds) < 10:
+                    continue
+                loader = DataLoader(ds, batch_size=32)
+                mae = evaluate_model(compound_mdls[compound], loader, 7)
+                compound_maes.append(mae)
+            except:
+                pass
+        compound_mae = round(float(np.mean(compound_maes)), 4) if compound_maes else None
+        
+        # Track MAE
+        track_name = '_'.join(race.split('_')[1:])
+        track_mae = None
+        for key in track_mdls:
+            if key.lower() in track_name.lower() or track_name.lower() in key.lower():
+                try:
+                    ds = TrackDataset(track_name, data_path=f"{tmpdir}/")
+                    if len(ds) < 10:
+                        continue
+                    loader = DataLoader(ds, batch_size=32)
+                    track_mae = evaluate_model(track_mdls[key], loader, 8)
+                except:
+                    pass
+                break
+        
+        shutil.rmtree(tmpdir)
+        
+        maes = [m for m in [generic_mae, compound_mae, track_mae] if m]
+        best = min(maes) if maes else None
+        best_label = 'Track' if track_mae and track_mae == best else \
+                     'Compound' if compound_mae and compound_mae == best else 'Generic'
+        
+        print(f"{race:<25} "
+              f"{str(generic_mae):>10} "
+              f"{str(compound_mae):>10} "
+              f"{str(track_mae):>10} "
+              f"{f'{best_label}({best})':>10}")
+        
+        results.append({
+            'race': race,
+            'generic_mae': generic_mae,
+            'compound_mae': compound_mae,
+            'track_mae': track_mae,
+            'best': best_label
+        })
+    
+    # Summary
+    gen_avg = np.mean([r['generic_mae'] for r in results if r['generic_mae']])
+    cmp_avg = np.mean([r['compound_mae'] for r in results if r['compound_mae']])
+    trk_avg = np.mean([r['track_mae'] for r in results if r['track_mae']])
+    
+    print("-" * 70)
+    print(f"{'AVERAGE':<25} {gen_avg:>10.4f} {cmp_avg:>10.4f} {trk_avg:>10.4f}")
+    print(f"\nTrack-specific models are {round((gen_avg - trk_avg) / gen_avg * 100, 1)}% more accurate than generic")
+
 
 if __name__ == '__main__':
-    # Adjust this to a CSV file you know exists in your data folder
-    evaluate_models('data/2023_Monza.csv', target_driver='VER', target_stint=1) 
+    run_comparison() 

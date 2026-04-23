@@ -73,6 +73,27 @@ def get_model_for_driver(stint_df):
         return compound_models[compound], 7
     return main_model, 8 
 
+def get_best_model(race_key, stint_df):
+    """
+    Smart model router — returns best available model for this race/driver.
+    Priority: track-specific → compound-specific → generic
+    """
+    compound = stint_df['Compound'].iloc[-1] if len(stint_df) > 0 else 'MEDIUM'
+    
+    # Try track-specific model first
+    track_name = '_'.join(race_key.split('_')[1:]) if '_' in race_key else race_key
+    
+    for key in track_models:
+        if key.lower() in track_name.lower() or track_name.lower() in key.lower():
+            return track_models[key], 8, f"Track — {key}"
+    
+    # Try compound-specific model
+    if compound in compound_models:
+        return compound_models[compound], 7, f"Compound — {compound}"
+    
+    # Fall back to generic
+    return model, 9, "Generic — Full Dataset" 
+
 # Available races
 RACES = {}
 
@@ -244,25 +265,17 @@ def pit_chart():
         return jsonify({'error': 'Not enough data'}), 400
     
     # Get model and uncertainty predictions using the dynamic Model Router
-    track_name = race_key.split('_', 1)[1] if '_' in race_key else race_key
-    compound = stint_df['Compound'].iloc[-1]
+    # Smart model routing — track → compound → generic
+    best_model, _, model_tier = get_best_model(race_key, stint_df)
     
-    from src.model_router import get_best_model
-    try:
-        model, model_tier = get_best_model(track_name, compound)
-    except Exception as e:
-        print(f"Router fallback triggered: {e}")
-        model, _ = get_model_for_driver(stint_df) # Fallback to static memory model
-        model_tier = "Generic PIML v2 (Memory Fallback)"
-        
-    n_future = 25
+    n_future = 25 
     
     # Uncertainty-aware predictions
     uncertainty = predict_with_uncertainty(
-        model, stint_df, n_future=n_future, n_samples=30
+        best_model, stint_df, n_future=n_future, n_samples=30
     )
     cliff = predict_cliff_with_uncertainty(
-        model, stint_df, n_samples=30
+        best_model, stint_df, n_samples=30
     )
     
     if uncertainty is None:
