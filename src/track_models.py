@@ -93,32 +93,37 @@ class TrackDataset(Dataset):
         return x, y
 
 
-def train_track_model(track_name, epochs=25, min_sequences=200):
-    """Train a PIML model specifically for one track."""
+def train_track_model(track_name, epochs=50, min_sequences=200):
+    """Train a PIML model specifically for one track with early stopping."""
     try:
         dataset = TrackDataset(track_name)
     except ValueError as e:
         print(f"  Skipping {track_name}: {e}")
         return None
-    
+
     if len(dataset) < min_sequences:
         print(f"  Skipping {track_name}: only {len(dataset)} sequences")
         return None
-    
+
     torch.manual_seed(42)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_set, val_set = random_split(dataset, [train_size, val_size])
-    
+
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
-    
-    model = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
+
+    # Higher dropout + weight decay to fight overfitting
+    model = TyreLSTM(input_size=8, hidden_size=64, num_layers=2, dropout=0.4)
     criterion = ThermalPIMLLoss(lambda_physics=0.1, lambda_thermal=0.05)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.5)
+
     best_val = float('inf')
-    
+    best_state = None
+    patience = 8
+    patience_counter = 0
+
     for epoch in range(epochs):
         model.train()
         for x, y in train_loader:
@@ -127,12 +132,10 @@ def train_track_model(track_name, epochs=25, min_sequences=200):
             tyre_lives = x[:, -1, 0]
             track_temps = x[:, -1, 5]
             abrasiveness = x[:, -1, 7]
-            loss, _, _, _ = criterion(
-                predictions, y, tyre_lives, track_temps, abrasiveness
-            )
+            loss, _, _, _ = criterion(predictions, y, tyre_lives, track_temps, abrasiveness)
             loss.backward()
             optimizer.step()
-        
+
         model.eval()
         val_loss = 0
         with torch.no_grad():
@@ -141,17 +144,29 @@ def train_track_model(track_name, epochs=25, min_sequences=200):
                 tyre_lives = x[:, -1, 0]
                 track_temps = x[:, -1, 5]
                 abrasiveness = x[:, -1, 7]
-                _, pred_loss, _, _ = criterion(
-                    predictions, y, tyre_lives, track_temps, abrasiveness
-                )
+                _, pred_loss, _, _ = criterion(predictions, y, tyre_lives, track_temps, abrasiveness)
                 val_loss += pred_loss.item()
-        
+
         avg_val = val_loss / len(val_loader)
+        scheduler.step()
+
+        # Early stopping
         if avg_val < best_val:
             best_val = avg_val
-    
+            best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            patience_counter = 0
+        else:
+            patience_counter += 1
+            if patience_counter >= patience:
+                print(f"  Early stop at epoch {epoch+1}")
+                break
+
+    # Restore best weights
+    if best_state:
+        model.load_state_dict(best_state)
+
     print(f"  Best val loss: {best_val:.4f}")
-    return model, best_val
+    return model, best_val 
 
 
 def train_all_track_models():

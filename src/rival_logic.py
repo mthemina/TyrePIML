@@ -3,10 +3,6 @@ import numpy as np
 import pandas as pd
 import math
 
-# ENGINEERING REPORT NOTE: 
-# This game theory engine and Bayesian modeling logic was developed 
-# collectively by the entire engineering team. We all worked in every 
-# section all together to map the 2026 FIA Power Unit regulations.
 
 # KINETIC RECOVERY DICTIONARY (2026 MGU-K Physics)
 # Ranks tracks by their braking energy potential (0.0 to 1.0)
