@@ -7,7 +7,14 @@ from src.piml_loss import ThermalPIMLLoss
 
 def train_piml(epochs=30):
     # Load full dataset with weather and track features
-    dataset = TyreDataset(use_weather=True, use_track=True)
+    import glob as _glob
+    # Filter to 2018-2022 only for fair evaluation
+    all_files = sorted(_glob.glob('data/*.csv'))
+    train_files = [f for f in all_files if any(
+        f'/{y}_' in f for y in [2018, 2019, 2020, 2021, 2022]
+    )]
+    print(f"Training on {len(train_files)} races (2018-2022 only)")
+    dataset = TyreDataset(use_weather=True, use_track=True) 
     input_size = dataset.get_input_size()
     print(f"Input size: {input_size} features per lap")
     
@@ -87,10 +94,10 @@ def train_piml(epochs=30):
             # Save best model
             if avg_val < best_val_loss:
                 best_val_loss = avg_val
-                torch.save(model.state_dict(), 'models/tyre_lstm_piml_v2.pt')
+                torch.save(model.state_dict(), 'models/tyre_lstm_piml_v2_train2022.pt') 
     
     print(f"\nBest val loss: {best_val_loss:.4f}")
-    print("Model saved to models/tyre_lstm_piml_v2.pt")
+    print("Model saved to models/tyre_lstm_piml_v2_train2022.pt")
     return model
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+import os
+
 import torch
 import pandas as pd
 import numpy as np
@@ -34,7 +36,7 @@ def run_comparison():
     
     # Generic model
     generic = TyreLSTM(input_size=9, hidden_size=128, num_layers=2)
-    generic.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
+    generic.load_state_dict(torch.load('models/tyre_lstm_piml_v2_train2022.pt')) 
     
     # Compound models
     compound_mdls = {}
@@ -58,11 +60,15 @@ def run_comparison():
     print(f"Compound models: {len(compound_mdls)}")
     print(f"Track models: {len(track_mdls)}")
     
-    # Test on 5 held-out races
+    # Only test on races the generic model has NOT seen — 2023 and 2024
+    all_files = glob.glob('data/*.csv')
     test_races = [
-        '2023_Monza', '2023_Silverstone', '2023_Spa',
-        '2022_Monza', '2022_Silverstone'
+        os.path.basename(f).replace('.csv', '') 
+        for f in all_files 
+        if os.path.basename(f).startswith('2023_') or 
+           os.path.basename(f).startswith('2024_')
     ]
+    print(f"Testing on {len(test_races)} held-out races (2023-2024)")
     
     print(f"\n{'Race':<25} {'Generic':>10} {'Compound':>10} {'Track':>10} {'Best':>10}")
     print("-" * 70)
