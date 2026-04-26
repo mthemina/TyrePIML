@@ -12,6 +12,7 @@ from src.dataset import (COMPOUND_MAP, normalize, denormalize,
                          TEMP_MIN, TEMP_MAX, ABRASIVENESS_MIN, ABRASIVENESS_MAX)
 from src.track_profiles import get_track_profile
 from src.piml_loss import PIMLLoss
+from src.transformer_model import TyreTransformer 
 
 
 class CompoundDataset(Dataset):
@@ -113,7 +114,7 @@ def train_compound_model(compound, epochs=25):
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
     
     # Input size is 7 (no compound feature — we have separate models)
-    model = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+    model = TyreTransformer(input_size=7, d_model=64, nhead=4, num_layers=2) 
     criterion = PIMLLoss(lambda_physics=0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     
@@ -155,7 +156,7 @@ def train_all_compound_models():
     for compound in ['SOFT', 'MEDIUM', 'HARD']:
         model = train_compound_model(compound)
         if model:
-            path = f'models/tyre_lstm_{compound.lower()}_v1.pt'
+            path = f'models/tyre_transformer_{compound.lower()}_v1.pt' 
             torch.save(model.state_dict(), path)
             print(f"  Saved {path}")
             results[compound] = path

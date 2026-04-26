@@ -31,11 +31,20 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent') # <-- CH
 # Load models at startup
 print("Loading models...")
 
-# Main PIML model
-main_model = TyreLSTM(input_size=9, hidden_size=128, num_layers=2)
-main_model.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
+from src.transformer_model import TyreTransformer
+
+# Primary model — Transformer
+main_model = TyreTransformer(input_size=9, d_model=64, nhead=4, num_layers=2)
+main_model.load_state_dict(torch.load('models/tyre_transformer_v1.pt'))
 main_model.eval()
-model = main_model  # backwards compatibility alias 
+model = main_model 
+print("  Loaded Transformer v1 as primary model")
+
+# LSTM fallback
+lstm_fallback = TyreLSTM(input_size=9, hidden_size=128, num_layers=2)
+lstm_fallback.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
+lstm_fallback.eval()
+print("  Loaded LSTM v2 as fallback")
 
 # Compound-specific models
 compound_models = {}

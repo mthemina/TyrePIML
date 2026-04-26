@@ -30,6 +30,9 @@ def evaluate_model(model, dataloader, input_size):
     mae = np.mean(np.abs(np.array(pred_sec) - np.array(true_sec)))
     return round(float(mae), 4)
 
+from src.transformer_model import TyreTransformer
+transformer = TyreTransformer(input_size=9, d_model=64, nhead=4, num_layers=2)
+transformer.load_state_dict(torch.load('models/tyre_transformer_v1.pt')) 
 
 def run_comparison():
     print("Loading models...")
@@ -70,8 +73,8 @@ def run_comparison():
     ]
     print(f"Testing on {len(test_races)} held-out races (2023-2024)")
     
-    print(f"\n{'Race':<25} {'Generic':>10} {'Compound':>10} {'Track':>10} {'Best':>10}")
-    print("-" * 70)
+    print(f"\n{'Race':<25} {'LSTM':>8} {'Transformer':>12} {'Compound':>10} {'Track':>10} {'Best':>14}")
+    print("-" * 82) 
     
     results = []
     
@@ -94,6 +97,14 @@ def run_comparison():
             generic_mae = evaluate_model(generic, loader, 9)
         except:
             generic_mae = None
+
+        try:
+            ds_t = TyreDataset(data_path=f"{tmpdir}/", sequence_length=5)
+            loader_t = DataLoader(ds_t, batch_size=32)
+            transformer_mae = evaluate_model(transformer, loader_t, 9)
+        except:
+            transformer_mae = None
+
         
         # Compound MAE — average across compounds present
         compound_maes = []
@@ -128,34 +139,41 @@ def run_comparison():
         
         shutil.rmtree(tmpdir)
         
-        maes = [m for m in [generic_mae, compound_mae, track_mae] if m]
-        best = min(maes) if maes else None
-        best_label = 'Track' if track_mae and track_mae == best else \
-                     'Compound' if compound_mae and compound_mae == best else 'Generic'
-        
+        maes = {
+            'LSTM': generic_mae,
+            'Transformer': transformer_mae,
+            'Compound': compound_mae,
+            'Track': track_mae
+        }
+        best_name = min((k for k in maes if maes[k]), key=lambda k: maes[k]) # type: ignore
+        best_val = maes[best_name]
+
         print(f"{race:<25} "
-              f"{str(generic_mae):>10} "
+              f"{str(generic_mae):>8} "
+              f"{str(transformer_mae):>12} "
               f"{str(compound_mae):>10} "
               f"{str(track_mae):>10} "
-              f"{f'{best_label}({best})':>10}")
-        
+              f"{f'{best_name}({best_val})':>14}")
+
         results.append({
             'race': race,
             'generic_mae': generic_mae,
+            'transformer_mae': transformer_mae,
             'compound_mae': compound_mae,
             'track_mae': track_mae,
-            'best': best_label
-        })
+            'best': best_name
+        }) 
     
     # Summary
-    gen_avg = np.mean([r['generic_mae'] for r in results if r['generic_mae']])
-    cmp_avg = np.mean([r['compound_mae'] for r in results if r['compound_mae']])
-    trk_avg = np.mean([r['track_mae'] for r in results if r['track_mae']])
-    
-    print("-" * 70)
-    print(f"{'AVERAGE':<25} {gen_avg:>10.4f} {cmp_avg:>10.4f} {trk_avg:>10.4f}")
-    print(f"\nTrack-specific models are {round((gen_avg - trk_avg) / gen_avg * 100, 1)}% more accurate than generic")
+    trans_avg = np.mean([r['transformer_mae'] for r in results if r.get('transformer_mae')])
+    gen_avg = np.mean([r['generic_mae'] for r in results if r.get('generic_mae')])
+    cmp_avg = np.mean([r['compound_mae'] for r in results if r.get('compound_mae')])
+    trk_avg = np.mean([r['track_mae'] for r in results if r.get('track_mae')])
 
+    print("-" * 82)
+    print(f"{'AVERAGE':<25} {gen_avg:>8.4f} {trans_avg:>12.4f} {cmp_avg:>10.4f} {trk_avg:>10.4f}")
+    print(f"\nTransformer vs LSTM: {round((gen_avg - trans_avg) / gen_avg * 100, 1)}% improvement")
+    print(f"Track models vs LSTM: {round((gen_avg - trk_avg) / gen_avg * 100, 1)}% difference") 
 
 if __name__ == '__main__':
     run_comparison() 

@@ -6,10 +6,11 @@ from src.dataset import denormalize, LAP_TIME_MIN, LAP_TIME_MAX
 
 
 def enable_dropout(model):
-    """Enable dropout layers during inference for Monte Carlo sampling."""
+    """Enable dropout layers during inference for Monte Carlo sampling.
+    Works for both LSTM and Transformer architectures."""
     for module in model.modules():
-        if isinstance(module, torch.nn.Dropout):
-            module.train()
+        if isinstance(module, (torch.nn.Dropout, torch.nn.modules.dropout.Dropout)):
+            module.train() 
 
 
 def mc_predict(model, sequence, n_future=20, n_samples=30):
