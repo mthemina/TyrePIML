@@ -77,10 +77,14 @@ if os.path.exists(track_registry_path):
     
     for track_name, info in track_registry.items():
         if os.path.exists(info['path']):
-            m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
+            arch = info.get('arch', 'lstm')
+            if arch == 'transformer':
+                m = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2)
+            else:
+                m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
             m.load_state_dict(torch.load(info['path']))
             m.eval()
-            track_models[track_name] = m
+            track_models[track_name] = m 
     
     print(f"  Loaded {len(track_models)} track models")
 
