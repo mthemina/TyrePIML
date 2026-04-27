@@ -12,6 +12,7 @@ from src.dataset import (normalize, denormalize, COMPOUND_MAP,
                          TYRE_LIFE_MAX, SECTOR_MIN, SECTOR_MAX,
                          TEMP_MIN, TEMP_MAX, ABRASIVENESS_MIN, ABRASIVENESS_MAX)
 from src.track_profiles import get_track_profile
+from src.transformer_model import TyreTransformer 
 
 
 class TrackDataset(Dataset):
@@ -114,7 +115,7 @@ def train_track_model(track_name, epochs=50, min_sequences=200):
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
 
     # Higher dropout + weight decay to fight overfitting
-    model = TyreLSTM(input_size=8, hidden_size=64, num_layers=2, dropout=0.4)
+    model = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2, dropout=0.4) 
     criterion = ThermalPIMLLoss(lambda_physics=0.1, lambda_thermal=0.05)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.5)
@@ -192,7 +193,7 @@ def train_all_track_models():
             safe_name = track.replace(' ', '_')
             path = f'models/tracks/{safe_name}.pt'
             torch.save(model.state_dict(), path)
-            results[track] = {'path': path, 'val_loss': round(val_loss, 4)}
+            results[track] = {'path': path, 'val_loss': round(val_loss, 4), 'arch': 'transformer'} 
     
     # Save track model registry
     import json

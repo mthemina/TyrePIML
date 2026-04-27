@@ -16,41 +16,41 @@ def enable_dropout(model):
 def mc_predict(model, sequence, n_future=20, n_samples=30):
     """
     Monte Carlo dropout prediction.
-    Runs the model n_samples times with dropout active.
+    Works with both LSTM and Transformer architectures.
     """
-    # Force dropout active
-    model.train()
-    
+    model.train()  # activates dropout
+
     all_predictions = []
-    
+
     with torch.no_grad():
         for _ in range(n_samples):
             preds = []
             current_seq = sequence.copy()
-            
+
             for _ in range(n_future):
                 x = torch.tensor(current_seq[-5:]).unsqueeze(0)
-                # Run model with dropout active
-                pred = model(x)
-                # Handle both scalar and tensor outputs
-                if pred.dim() == 0:
-                    pred_val = pred.item()
+                out = model(x)
+
+                # Handle scalar vs tensor output
+                if out.dim() == 0:
+                    pred_val = out.item()
+                elif out.dim() == 1:
+                    pred_val = out[0].item()
                 else:
-                    pred_val = pred[0].item()
-                
+                    pred_val = out[0, 0].item()
+
                 pred_seconds = denormalize(pred_val, LAP_TIME_MIN, LAP_TIME_MAX)
                 preds.append(pred_seconds)
-                
-                # Build next features
+
                 next_features = current_seq[-1].copy()
                 next_features[0] = current_seq[-1][0] + (1.0 / 59.0)
                 current_seq = np.vstack([current_seq, next_features])
-            
+
             all_predictions.append(preds)
-    
+
     model.eval()
     all_predictions = np.array(all_predictions)
-    
+
     return {
         'mean': np.mean(all_predictions, axis=0),
         'std': np.std(all_predictions, axis=0),

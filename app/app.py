@@ -46,16 +46,25 @@ lstm_fallback.load_state_dict(torch.load('models/tyre_lstm_piml_v2.pt'))
 lstm_fallback.eval()
 print("  Loaded LSTM v2 as fallback")
 
-# Compound-specific models
+# Transformer compound models
 compound_models = {}
 for compound in ['soft', 'medium', 'hard']:
-    path = f'models/tyre_lstm_{compound}_v1.pt'
+    path = f'models/tyre_transformer_{compound}_v1.pt'
     if os.path.exists(path):
-        m = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+        m = TyreTransformer(input_size=7, d_model=64, nhead=4, num_layers=2)
         m.load_state_dict(torch.load(path))
         m.eval()
         compound_models[compound.upper()] = m
-        print(f"  Loaded {compound} model")
+        print(f"  Loaded Transformer {compound} model")
+    else:
+        # Fall back to LSTM compound model
+        path = f'models/tyre_lstm_{compound}_v1.pt'
+        if os.path.exists(path):
+            m = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+            m.load_state_dict(torch.load(path))
+            m.eval()
+            compound_models[compound.upper()] = m
+            print(f"  Loaded LSTM {compound} model (fallback)") 
 
 print(f"Models ready. Compound models: {list(compound_models.keys())}")
 
@@ -84,24 +93,23 @@ def get_model_for_driver(stint_df):
 
 def get_best_model(race_key, stint_df):
     """
-    Smart model router — returns best available model for this race/driver.
-    Priority: track-specific → compound-specific → generic
+    Smart model router.
+    Priority: Transformer compound → track-specific → generic Transformer → LSTM fallback
     """
     compound = stint_df['Compound'].iloc[-1] if len(stint_df) > 0 else 'MEDIUM'
-    
-    # Try track-specific model first
     track_name = '_'.join(race_key.split('_')[1:]) if '_' in race_key else race_key
-    
+
+    # 1. Transformer compound model
+    if compound in compound_models:
+        return compound_models[compound], 7, f"Transformer — {compound} Compound"
+
+    # 2. Track-specific model
     for key in track_models:
         if key.lower() in track_name.lower() or track_name.lower() in key.lower():
             return track_models[key], 8, f"Track — {key}"
-    
-    # Try compound-specific model
-    if compound in compound_models:
-        return compound_models[compound], 7, f"Compound — {compound}"
-    
-    # Fall back to generic
-    return model, 9, "Generic — Full Dataset" 
+
+    # 3. Generic Transformer
+    return main_model, 9, "Transformer — Full Dataset"  
 
 # Available races
 RACES = {}
