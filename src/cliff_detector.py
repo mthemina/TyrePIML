@@ -9,7 +9,7 @@ from src.driver_profiles import get_driver_style_encoding
 # A lap is considered a cliff if it's this many seconds slower than the stint average
 CLIFF_THRESHOLD = 1.5
 
-def prepare_sequence(model, stint_df, sequence_length=5):
+def prepare_sequence(model, stint_df, sequence_length=8):
     """
     Convert a stint dataframe into model input sequences.
     Dynamically scales feature dimensions based on model architecture (7, 8, or 9 features).
@@ -20,7 +20,13 @@ def prepare_sequence(model, stint_df, sequence_length=5):
     from src.driver_profiles import get_driver_style_encoding
     
     # Dynamically read what the model expects
-    expected_features = model.lstm.input_size
+    # Works for both LSTM and Transformer
+    if hasattr(model, 'lstm'):
+        expected_features = model.lstm.input_size
+    elif hasattr(model, 'input_projection'):
+        expected_features = model.input_projection.in_features
+    else:
+        expected_features = 9  # default 
     
     has_weather = 'track_temp_avg' in stint_df.columns
     track_temp = float(stint_df['track_temp_avg'].iloc[0]) if has_weather else 35.0
@@ -77,7 +83,8 @@ def predict_future_laps(model, current_sequence, n_future=20):
     
     with torch.no_grad():
         for _ in range(n_future):
-            x = torch.tensor(sequence[-5:]).unsqueeze(0).to(device)
+            seq_len = 8
+            x = torch.tensor(current_seq[-seq_len:]).unsqueeze(0).to(device)  # type: ignore
             pred = model(x).item()
             predictions.append(pred)
             

@@ -5,6 +5,7 @@ import numpy as np
 import glob
 import os
 import json
+from src.thermal_model import calculate_thermal_energy 
 
 # Compound encoding
 COMPOUND_MAP = {'SOFT': 0, 'MEDIUM': 1, 'HARD': 2}
@@ -121,6 +122,19 @@ class TyreDataset(Dataset):
                         normalize(row['Sector3Time'], SECTOR_MIN, SECTOR_MAX),
                     ]
 
+                    # Thermal energy feature
+                    thermal_energy = calculate_thermal_energy(
+                        lap_time=row['LapTime'],
+                        sector1=row['Sector1Time'],
+                        sector2=row['Sector2Time'],
+                        sector3=row['Sector3Time'],
+                        track_temp=track_temp,
+                        compound=row.get('Compound', 'MEDIUM'),
+                        abrasiveness=abrasiveness,
+                        tyre_life=row['TyreLife']
+                    )
+                    feat.append(thermal_energy)
+
                     if self.use_weather:
                         feat.append(normalize(track_temp, TEMP_MIN, TEMP_MAX))
                         feat.append(normalize(air_temp, TEMP_MIN, TEMP_MAX))
@@ -144,14 +158,14 @@ class TyreDataset(Dataset):
                     )
 
     def get_input_size(self):
-        """Return number of features per lap."""
         base = 5
         if self.use_weather:
             base += 2
         if self.use_track:
             base += 1
         base += 1  # driver encoding
-        return base
+        base += 1  # thermal energy
+        return base 
 
     def __len__(self):
         return len(self.sequences)
