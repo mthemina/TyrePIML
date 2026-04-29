@@ -34,7 +34,7 @@ print("Loading models...")
 from src.transformer_model import TyreTransformer
 
 # Primary model — Transformer
-main_model = TyreTransformer(input_size=9, d_model=64, nhead=4, num_layers=2)
+main_model = TyreTransformer(input_size=10, d_model=64, nhead=4, num_layers=2)
 main_model.load_state_dict(torch.load('models/tyre_transformer_v1.pt'))
 main_model.eval()
 model = main_model 
@@ -51,7 +51,7 @@ compound_models = {}
 for compound in ['soft', 'medium', 'hard']:
     path = f'models/tyre_transformer_{compound}_v1.pt'
     if os.path.exists(path):
-        m = TyreTransformer(input_size=7, d_model=64, nhead=4, num_layers=2)
+        m = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2)
         m.load_state_dict(torch.load(path))
         m.eval()
         compound_models[compound.upper()] = m
@@ -60,7 +60,7 @@ for compound in ['soft', 'medium', 'hard']:
         # Fall back to LSTM compound model
         path = f'models/tyre_lstm_{compound}_v1.pt'
         if os.path.exists(path):
-            m = TyreLSTM(input_size=7, hidden_size=64, num_layers=2)
+            m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
             m.load_state_dict(torch.load(path))
             m.eval()
             compound_models[compound.upper()] = m
@@ -79,9 +79,9 @@ if os.path.exists(track_registry_path):
         if os.path.exists(info['path']):
             arch = info.get('arch', 'lstm')
             if arch == 'transformer':
-                m = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2)
+                m = TyreTransformer(input_size=9, d_model=64, nhead=4, num_layers=2)
             else:
-                m = TyreLSTM(input_size=8, hidden_size=64, num_layers=2)
+                m = TyreLSTM(input_size=9, hidden_size=64, num_layers=2)
             m.load_state_dict(torch.load(info['path']))
             m.eval()
             track_models[track_name] = m 
@@ -93,7 +93,7 @@ def get_model_for_driver(stint_df):
     compound = stint_df['Compound'].iloc[-1] if len(stint_df) > 0 else 'MEDIUM'
     if compound in compound_models:
         return compound_models[compound], 7
-    return main_model, 8 
+    return main_model, 9
 
 def get_best_model(race_key, stint_df):
     """

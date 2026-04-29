@@ -5,6 +5,7 @@ from src.model import TyreLSTM
 from src.dataset import COMPOUND_MAP, normalize, denormalize, LAP_TIME_MIN, LAP_TIME_MAX, TYRE_LIFE_MIN, TYRE_LIFE_MAX, SECTOR_MIN, SECTOR_MAX
 from src.model_router import get_best_model  # Injecting our new smart router
 from src.driver_profiles import get_driver_style_encoding 
+from src.thermal_model import calculate_thermal_energy 
 
 # A lap is considered a cliff if it's this many seconds slower than the stint average
 CLIFF_THRESHOLD = 1.5
@@ -44,6 +45,16 @@ def prepare_sequence(model, stint_df, sequence_length=8):
     features = []
     for _, row in stint_df.iterrows():
         # 1. The core 7 features every model has (v1 compound models)
+        thermal = calculate_thermal_energy(
+            lap_time=row['LapTime'],
+            sector1=row['Sector1Time'],
+            sector2=row['Sector2Time'],
+            sector3=row['Sector3Time'],
+            track_temp=track_temp,
+            compound=row['Compound'],
+            abrasiveness=abrasiveness,
+            tyre_life=row['TyreLife']
+        )
         feat = [
             normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
             COMPOUND_MAP[row['Compound']] / 2.0,
@@ -52,7 +63,11 @@ def prepare_sequence(model, stint_df, sequence_length=8):
             normalize(row['Sector3Time'], SECTOR_MIN, SECTOR_MAX),
             normalize(track_temp, TEMP_MIN, TEMP_MAX),
             normalize(air_temp, TEMP_MIN, TEMP_MAX),
+            normalize(abrasiveness, ABRASIVENESS_MIN, ABRASIVENESS_MAX),
+            driver_encoding,
+            thermal,
         ]
+        features.append(feat)
         
         # 2. The 8th feature (Track Abrasiveness - added in later models)
         if expected_features >= 8:

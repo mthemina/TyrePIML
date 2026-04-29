@@ -63,6 +63,17 @@ class TrackDataset(Dataset):
                 
                 features = []
                 for _, row in stint_df.iterrows():
+                    from src.thermal_model import calculate_thermal_energy
+                    thermal = calculate_thermal_energy(
+                        lap_time=row['LapTime'],
+                        sector1=row['Sector1Time'],
+                        sector2=row['Sector2Time'],
+                        sector3=row['Sector3Time'],
+                        track_temp=track_temp,
+                        compound=row.get('Compound', 'MEDIUM'),
+                        abrasiveness=abrasiveness,
+                        tyre_life=row['TyreLife']
+                    )
                     features.append([
                         normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
                         COMPOUND_MAP.get(row['Compound'], 1) / 2.0,
@@ -72,7 +83,9 @@ class TrackDataset(Dataset):
                         normalize(track_temp, TEMP_MIN, TEMP_MAX),
                         normalize(air_temp, TEMP_MIN, TEMP_MAX),
                         normalize(abrasiveness, ABRASIVENESS_MIN, ABRASIVENESS_MAX),
+                        thermal,
                     ])
+
                 
                 features = np.array(features, dtype=np.float32)
                 
@@ -115,7 +128,7 @@ def train_track_model(track_name, epochs=50, min_sequences=200):
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
 
     # Higher dropout + weight decay to fight overfitting
-    model = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2, dropout=0.4) 
+    model = TyreTransformer(input_size=9, d_model=64, nhead=4, num_layers=2, dropout=0.4) 
     criterion = ThermalPIMLLoss(lambda_physics=0.1, lambda_thermal=0.05)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=15, gamma=0.5)

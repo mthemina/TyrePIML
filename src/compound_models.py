@@ -65,6 +65,17 @@ class CompoundDataset(Dataset):
                 
                 features = []
                 for _, row in stint_df.iterrows():
+                    from src.thermal_model import calculate_thermal_energy
+                    thermal = calculate_thermal_energy(
+                        lap_time=row['LapTime'],
+                        sector1=row['Sector1Time'],
+                        sector2=row['Sector2Time'],
+                        sector3=row['Sector3Time'],
+                        track_temp=track_temp,
+                        compound=row['Compound'],
+                        abrasiveness=abrasiveness,
+                        tyre_life=row['TyreLife']
+                    )
                     features.append([
                         normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
                         normalize(row['Sector1Time'], SECTOR_MIN, SECTOR_MAX),
@@ -73,7 +84,8 @@ class CompoundDataset(Dataset):
                         normalize(track_temp, TEMP_MIN, TEMP_MAX),
                         normalize(air_temp, TEMP_MIN, TEMP_MAX),
                         normalize(abrasiveness, ABRASIVENESS_MIN, ABRASIVENESS_MAX),
-                    ])
+                        thermal,
+   ])
                 
                 features = np.array(features, dtype=np.float32)
                 
@@ -113,8 +125,8 @@ def train_compound_model(compound, epochs=25):
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=32, shuffle=False)
     
-    # Input size is 7 (no compound feature — we have separate models)
-    model = TyreTransformer(input_size=7, d_model=64, nhead=4, num_layers=2) 
+    # Input size is 8 (no compound feature — we have separate models)
+    model = TyreTransformer(input_size=8, d_model=64, nhead=4, num_layers=2) 
     criterion = PIMLLoss(lambda_physics=0.1)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     
