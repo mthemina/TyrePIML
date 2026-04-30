@@ -11,40 +11,32 @@ from src.thermal_model import calculate_thermal_energy
 CLIFF_THRESHOLD = 1.5
 
 def prepare_sequence(model, stint_df, sequence_length=8):
-    """
-    Convert a stint dataframe into model input sequences.
-    Dynamically scales feature dimensions based on model architecture (7, 8, or 9 features).
-    """
+    """Convert a stint dataframe into model input sequences."""
     from src.track_profiles import get_track_profile
-    from src.dataset import (TEMP_MIN, TEMP_MAX, 
-                             ABRASIVENESS_MIN, ABRASIVENESS_MAX)
+    from src.dataset import TEMP_MIN, TEMP_MAX, ABRASIVENESS_MIN, ABRASIVENESS_MAX
     from src.driver_profiles import get_driver_style_encoding
-    
-    # Dynamically read what the model expects
-    # Works for both LSTM and Transformer
+
     if hasattr(model, 'lstm'):
         expected_features = model.lstm.input_size
     elif hasattr(model, 'input_projection'):
         expected_features = model.input_projection.in_features
     else:
-        expected_features = 9  # default 
-    
+        expected_features = 10
+
     has_weather = 'track_temp_avg' in stint_df.columns
     track_temp = float(stint_df['track_temp_avg'].iloc[0]) if has_weather else 35.0
     air_temp = float(stint_df['air_temp_avg'].iloc[0]) if has_weather else 28.0
-    
+
     abrasiveness = 5.0
     if 'Event' in stint_df.columns:
-        event = stint_df['Event'].iloc[0]
-        profile = get_track_profile(event)
+        profile = get_track_profile(stint_df['Event'].iloc[0])
         abrasiveness = profile['abrasiveness']
-        
+
     driver_name = stint_df['Driver'].iloc[0] if 'Driver' in stint_df.columns else None
     driver_encoding = get_driver_style_encoding(driver_name) if driver_name else 0.5
-    
+
     features = []
     for _, row in stint_df.iterrows():
-        # 1. The core 7 features every model has (v1 compound models)
         thermal = calculate_thermal_energy(
             lap_time=row['LapTime'],
             sector1=row['Sector1Time'],
@@ -55,6 +47,7 @@ def prepare_sequence(model, stint_df, sequence_length=8):
             abrasiveness=abrasiveness,
             tyre_life=row['TyreLife']
         )
+        # Build full 10-feature vector then slice to model's expected size
         feat = [
             normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
             COMPOUND_MAP[row['Compound']] / 2.0,
@@ -67,24 +60,8 @@ def prepare_sequence(model, stint_df, sequence_length=8):
             driver_encoding,
             thermal,
         ]
-        features.append(feat)
-        
-        # 2. The 8th feature (Track Abrasiveness - added in later models)
-        if expected_features >= 8:
-            feat.append(normalize(abrasiveness, ABRASIVENESS_MIN, ABRASIVENESS_MAX))
-            
-        # 3. The 9th feature (Driver Profile - added in v2 models)
-        if expected_features >= 9:
-            if 'DriverEncoded' in stint_df.columns:
-                feat.append(row['DriverEncoded'])
-            else:
-                feat.append(driver_encoding)
-                
-        # Absolute failsafe: slice the array to exactly match the model's expected size
-        feat = feat[:expected_features]
-                
-        features.append(feat)
-    
+        features.append(feat[:expected_features])
+
     return np.array(features, dtype=np.float32) 
 
 def predict_future_laps(model, current_sequence, n_future=20):
