@@ -167,6 +167,16 @@
     <span>F1 Race Strategy Intelligence — Physics-Informed ML</span>
 </header>
 
+<!-- Race Calendar Bar -->
+<div id="calendarBar" style="background:#111; border-bottom: 1px solid #2a3a1a; 
+     padding: 8px 32px; display:flex; gap: 24px; align-items:center;">
+    <span style="color:#555; font-size:0.75rem; text-transform:uppercase; 
+          letter-spacing:1px;">Upcoming</span>
+    <div id="calendarRaces" style="display:flex; gap:20px; flex:1;">
+        <span style="color:#555; font-size:0.82rem;">Loading calendar...</span>
+    </div>
+</div>
+
 <div class="container">
 
     <div class="controls">
@@ -324,6 +334,29 @@
         }
     }
 
+    // Load race calendar
+    async function loadCalendar() {
+        try {
+            const res = await fetch('/api/calendar');
+            const data = await res.json();
+            if (data.races && data.races.length > 0) {
+                document.getElementById('calendarRaces').innerHTML =
+                    data.races.map(r => `
+                        <span style="font-size:0.82rem; color:#F0EDE4;">
+                            <span style="color:#C9A84C">${r.badge}</span>
+                            &nbsp;${r.name}
+                            <span style="color:#555; font-size:0.75rem;">
+                                — ${r.date}
+                            </span>
+                        </span>
+                    `).join('<span style="color:#333">|</span>');
+            }
+        } catch(e) {
+            console.log('Calendar unavailable');
+        }
+    }
+    loadCalendar(); 
+    
     // ── Load Drivers ───────────────────────────────────────────────────────
     async function loadDrivers() {
         const race = document.getElementById('raceSelect').value;

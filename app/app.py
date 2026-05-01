@@ -622,6 +622,16 @@ def timing_beam_loop(sid, data):
         lap += 1
         socketio.emit('timing_beam_trigger', {'new_lap': lap}, to=sid) 
 
+@app.route('/api/calendar')
+def calendar():
+    """Return upcoming F1 races."""
+    from src.live_race import get_calendar_for_api
+    try:
+        races = get_calendar_for_api(n=3)
+        return jsonify({'races': races})
+    except Exception as e:
+        return jsonify({'races': [], 'error': str(e)}) 
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  
