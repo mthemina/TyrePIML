@@ -3,12 +3,10 @@ import numpy as np
 import pandas as pd
 from src.model import TyreLSTM
 from src.dataset import COMPOUND_MAP, normalize, denormalize, LAP_TIME_MIN, LAP_TIME_MAX, TYRE_LIFE_MIN, TYRE_LIFE_MAX, SECTOR_MIN, SECTOR_MAX
-from src.model_router import get_best_model  # Injecting our new smart router
-from src.driver_profiles import get_driver_style_encoding 
-from src.thermal_model import calculate_thermal_energy 
+from src.thermal_model import calculate_thermal_energy
 
-# A lap is considered a cliff if it's this many seconds slower than the stint average
 CLIFF_THRESHOLD = 1.5
+
 
 def prepare_sequence(model, stint_df, sequence_length=8):
     """Convert a stint dataframe into model input sequences."""
@@ -47,7 +45,6 @@ def prepare_sequence(model, stint_df, sequence_length=8):
             abrasiveness=abrasiveness,
             tyre_life=row['TyreLife']
         )
-        # Build full 10-feature vector then slice to model's expected size
         feat = [
             normalize(row['TyreLife'], TYRE_LIFE_MIN, TYRE_LIFE_MAX),
             COMPOUND_MAP[row['Compound']] / 2.0,
@@ -62,80 +59,84 @@ def prepare_sequence(model, stint_df, sequence_length=8):
         ]
         features.append(feat[:expected_features])
 
-    return np.array(features, dtype=np.float32) 
+    return np.array(features, dtype=np.float32)
+
 
 def predict_future_laps(model, current_sequence, n_future=20):
     """Autoregressively predict the next n_future lap times."""
     model.eval()
     predictions = []
     sequence = current_sequence.copy()
-    
-    # Ensure hardware acceleration compatibility
-    device = next(model.parameters()).device
-    
+
+    seq_len = min(8, len(sequence))
+
     with torch.no_grad():
         for _ in range(n_future):
-            seq_len = 8
-            x = torch.tensor(current_seq[-seq_len:]).unsqueeze(0).to(device)  # type: ignore
-            pred = model(x).item()
+            device = next(model.parameters()).device
+            x = torch.tensor(sequence[-seq_len:]).unsqueeze(0).to(device)
+            out = model(x)
+
+            if out.dim() == 0:
+                pred = out.item()
+            elif out.dim() == 1:
+                pred = out[0].item()
+            else:
+                pred = out[0, 0].item()
+
             predictions.append(pred)
-            
-            # Increment tyre life by 1 normalized unit (safely keeps the 9 dimensions)
-            next_tyre_life = sequence[-1][0] + (1.0 / (TYRE_LIFE_MAX - TYRE_LIFE_MIN))
+
             next_features = sequence[-1].copy()
-            next_features[0] = next_tyre_life
+            next_features[0] = sequence[-1][0] + (1.0 / (TYRE_LIFE_MAX - TYRE_LIFE_MIN))
             sequence = np.vstack([sequence, next_features])
-    
+
     return predictions
 
 
 def detect_cliff_with_confidence(base_model, stint_df, n_future=20, n_samples=10, track_name=None):
-    """
-    Routes to the best model, then runs Monte Carlo dropout to find the cliff.
-    """
-    # 1. SMART ROUTING
+    """Monte Carlo dropout cliff detection with smart model routing."""
     compound = stint_df['Compound'].iloc[-1]
+
     if track_name is None and 'Event' in stint_df.columns:
         track_name = stint_df['Event'].iloc[0]
     elif track_name is None:
         track_name = "Generic"
-        
+
     try:
+        from src.model_router import get_best_model
         model, _ = get_best_model(track_name, compound)
     except Exception as e:
         print(f"Router fallback in cliff detector: {e}")
         model = base_model
-        
-    # 2. SEQUENCE PREP (Now using dynamic sizing)
-    model.train()  # Keep MC dropout active
+
+    model.train()  # MC dropout active
     sequence = prepare_sequence(model, stint_df)
-    
+
     current_lap = int(stint_df['TyreLife'].max())
     current_avg = stint_df['LapTime'].mean()
-    
+
     cliff_laps = []
     all_predictions = []
-    
+
     with torch.no_grad():
-        for sample in range(n_samples):
+        for _ in range(n_samples):
             future_preds = predict_future_laps(model, sequence, n_future)
             future_seconds = [denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX) for p in future_preds]
             all_predictions.append(future_seconds)
-            
+
             for i, lap_time in enumerate(future_seconds):
                 if lap_time > current_avg + CLIFF_THRESHOLD:
                     cliff_laps.append(current_lap + i + 1)
                     break
-    
-    model.eval() 
-    
+
+    model.eval()
+
     if not cliff_laps:
         return None, None, None, None
-    
+
     cliff_mean = np.mean(cliff_laps)
     cliff_low = int(np.percentile(cliff_laps, 25))
     cliff_high = int(np.percentile(cliff_laps, 75))
-    
+
     return round(cliff_mean), cliff_low, cliff_high, all_predictions
 
 
@@ -143,12 +144,12 @@ def calculate_pit_delta(current_lap, pit_lap, future_seconds, avg_lap_time, pit_
     laps_remaining = len(future_seconds) - (pit_lap - current_lap)
     if laps_remaining <= 0:
         return None
-    
+
     degradation_cost = sum(
-        future_seconds[i] - avg_lap_time 
+        future_seconds[i] - avg_lap_time
         for i in range(pit_lap - current_lap, len(future_seconds))
     )
-    
+
     net_delta = pit_loss - degradation_cost
     return round(net_delta, 3)
 
@@ -156,12 +157,14 @@ def calculate_pit_delta(current_lap, pit_lap, future_seconds, avg_lap_time, pit_
 def find_optimal_pit_window(base_model, stint_df, race_laps_remaining=30, pit_loss=22.0, track_name=None):
     """Evaluate possible pit laps using the smartest available model."""
     compound = stint_df['Compound'].iloc[-1]
+
     if track_name is None and 'Event' in stint_df.columns:
         track_name = stint_df['Event'].iloc[0]
     elif track_name is None:
         track_name = "Generic"
-        
+
     try:
+        from src.model_router import get_best_model
         model, _ = get_best_model(track_name, compound)
     except Exception:
         model = base_model
@@ -169,10 +172,10 @@ def find_optimal_pit_window(base_model, stint_df, race_laps_remaining=30, pit_lo
     sequence = prepare_sequence(model, stint_df)
     current_lap = int(stint_df['TyreLife'].max())
     current_avg = stint_df['LapTime'].mean()
-    
+
     future_preds = predict_future_laps(model, sequence, race_laps_remaining)
     future_seconds = [denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX) for p in future_preds]
-    
+
     results = []
     for pit_lap in range(current_lap + 1, current_lap + race_laps_remaining):
         delta = calculate_pit_delta(current_lap, pit_lap, future_seconds, current_avg, pit_loss)
@@ -182,8 +185,8 @@ def find_optimal_pit_window(base_model, stint_df, race_laps_remaining=30, pit_lo
                 'net_delta': delta,
                 'recommendation': 'PIT' if delta < 0 else 'STAY'
             })
-    
+
     results_df = pd.DataFrame(results)
     optimal = results_df.loc[results_df['net_delta'].idxmin()]
-    
+
     return optimal, results_df 
