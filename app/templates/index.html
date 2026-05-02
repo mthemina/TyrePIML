@@ -221,6 +221,13 @@
     <div class="status-bar" id="statusBar">Select a race and lap, then click Analyze.</div>
     <div class="error" id="errorBox"></div>
     <div class="loading" id="loadingBox">⏳ Running strategy analysis...</div>
+    <div style="text-align:right; margin-top:-16px; margin-bottom:16px;">
+        <button onclick="exportNotes()" class="btn"
+            style="padding:6px 16px; font-size:0.8rem; width:auto; background:#252525;
+                   border:1px solid #3a3a3a; letter-spacing:0.5px;">
+            📋 Export Notes
+        </button>
+    </div> 
 
     <div class="grid" id="resultsGrid" style="display:none">
         <div class="card">
@@ -303,6 +310,11 @@
                 <div id="profilePercentile" style="font-size:1.1rem;font-weight:700;"></div>
             </div>
         </div>
+        <!-- Stint Timeline -->
+    <div class="card" id="stintTimelineCard" style="margin-top: 24px; display:none">
+        <h2>📈 Stint Timeline — <span id="stintTimelineDriver"></span></h2>
+        <div id="stintTimelineBody"></div>
+    </div> 
         <table>
             <thead><tr>
                 <th>Compound</th><th>Deg Rate (s/lap)</th><th>Style</th><th>vs Field</th>
@@ -333,6 +345,50 @@
                 'data:image/png;base64,' + String(base64Data).replace(/\s/g, '');
         }
     }
+
+    function exportNotes() {
+        const race = document.getElementById('raceSelect').value.split('_').join(' ');
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+        const pitLap = document.getElementById('pitLapInput').value;
+        const optimalPit = document.getElementById('optimalPitLap').textContent;
+        const style = document.getElementById('profileStyle').textContent;
+        const degRate = document.getElementById('profileRate').textContent;
+
+        // Collect tyre states
+        const rows = document.querySelectorAll('#tyreBody tr');
+        let tyreNotes = '';
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 6) {
+                tyreNotes += `  ${cells[0].textContent.trim()} | ${cells[1].textContent.trim()} | Age: ${cells[2].textContent} | Cliff: ${cells[4].textContent} | ${cells[5].textContent.trim()}\n`;
+            }
+        });
+
+        const notes = `
+TyrePIML Strategy Notes
+========================
+Race:          ${race}
+Lap:           ${lap}
+Focus Driver:  ${driver}
+Planned Pit:   Lap ${pitLap}
+${optimalPit}
+
+Driver Profile:
+  Style: ${style}
+  Deg Rate: ${degRate}
+
+Tyre States:
+${tyreNotes}
+Generated: ${new Date().toISOString()}
+`.trim();
+
+        navigator.clipboard.writeText(notes).then(() => {
+            const btn = event.target;
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => btn.textContent = '📋 Export Notes', 2000);
+        });
+    } 
 
     // Load race calendar
     async function loadCalendar() {
@@ -463,6 +519,68 @@
         document.getElementById('driverProfileCard').style.display = 'block';
     }
 
+    async function loadStintTimeline() {
+        const race = document.getElementById('raceSelect').value;
+        const driver = document.getElementById('driverSelect').value;
+
+        const res = await fetch('/api/stint_timeline', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race, driver})
+        });
+        const data = await res.json();
+        if (!data.stints) return;
+
+        const colors = {'SOFT': '#7a1f1f', 'MEDIUM': '#C9A84C', 'HARD': '#3a3a3a'};
+        const textColors = {'SOFT': '#F0EDE4', 'MEDIUM': '#0F0F0F', 'HARD': '#F0EDE4'};
+
+        document.getElementById('stintTimelineDriver').textContent = driver;
+        document.getElementById('stintTimelineBody').innerHTML = data.stints.map(s => {
+            const sparkline = s.lap_times.map((t, i) => {
+                const min = Math.min(...s.lap_times);
+                const max = Math.max(...s.lap_times);
+                const pct = max === min ? 50 : ((t - min) / (max - min)) * 80 + 10;
+                const x = (i / Math.max(s.lap_times.length - 1, 1)) * 100;
+                return `${x},${100 - pct}`;
+            }).join(' ');
+
+            const degColor = s.degradation_rate > 0.05 ? '#8B2020' :
+                            s.degradation_rate > 0.02 ? '#C9A84C' : '#6B7C3F';
+
+            return `
+            <div style="margin-bottom:16px; padding:16px; background:#252525;
+                        border-radius:8px; border-left: 3px solid ${colors[s.compound] || '#555'}">
+                <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
+                    <span style="font-weight:700;">
+                        <span style="background:${colors[s.compound]||'#555'};
+                               color:${textColors[s.compound]||'#fff'};
+                               padding:2px 8px; border-radius:4px; font-size:0.8rem;">
+                            ${s.compound}
+                        </span>
+                        &nbsp;Stint ${s.stint} — ${s.laps} laps
+                        (TL ${s.tyre_life_start}–${s.tyre_life_end})
+                    </span>
+                    <span style="color:${degColor}; font-size:0.85rem;">
+                        Deg: ${s.degradation_rate > 0 ? '+' : ''}${s.degradation_rate}s/lap
+                    </span>
+                </div>
+                <div style="display:flex; gap:24px; margin-bottom:12px; font-size:0.82rem;">
+                    <span style="color:#888;">Avg <span style="color:#F0EDE4">${s.avg_lap_time}s</span></span>
+                    <span style="color:#888;">Best <span style="color:#6B7C3F">${s.min_lap_time}s</span></span>
+                    <span style="color:#888;">Worst <span style="color:#8B2020">${s.max_lap_time}s</span></span>
+                </div>
+                <svg viewBox="0 0 100 50" preserveAspectRatio="none"
+                     style="width:100%; height:50px; display:block;">
+                    <polyline points="${sparkline}" fill="none"
+                              stroke="${colors[s.compound] || '#6B7C3F'}"
+                              stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+                </svg>
+            </div>`;
+        }).join('');
+
+        document.getElementById('stintTimelineCard').style.display = 'block';
+    } 
+
     // ── Main Analyze ──────────────────────────────────────────────────────
     async function analyze() {
         const race    = document.getElementById('raceSelect').value;
@@ -478,6 +596,7 @@
             });
             document.getElementById('loadingBox').style.display = 'block';
             document.getElementById('errorBox').style.display = 'none';
+            document.getElementById('stintTimelineCard').style.display = 'none'; 
         }
         document.getElementById('analyzeBtn').disabled = true;
 
@@ -546,6 +665,7 @@
             try { await loadStrategyMap(); }   catch(e){ console.error('Map',e); }
             try { await loadUndercut(); }      catch(e){ console.error('Undercut',e); }
             try { await loadDriverProfile(); } catch(e){ console.error('Profile',e); }
+            try { await loadStintTimeline(); } catch(e){ console.error('Timeline',e); } 
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
@@ -574,8 +694,7 @@
         }
     });
 
-    // ── Playback Toggle ───────────────────────────────────────────────────
-    async function togglePlayback() {
+   async function togglePlayback() {
         const btn = document.getElementById('playBtn');
         const inp = document.getElementById('lapInput');
         isLivePlayback = !isLivePlayback;
@@ -589,14 +708,33 @@
             btn.innerHTML = '⏸️ Pause';
             btn.style.background = '#8B2020';
             btn.style.color = '#F0EDE4';
-            try { await analyze(); } catch(e){ console.error('Initial analyze:', e); }
+
+            // Start from current lap and advance every 4 seconds
+            const startLap = parseInt(inp.value) || 5;
+            const maxLap = parseInt(inp.max) || 53;
+
+            async function replayStep(currentLap) {
+                if (!isLivePlayback || currentLap > maxLap) {
+                    isLivePlayback = false;
+                    btn.innerHTML = '▶️ Auto-Advance';
+                    btn.style.background = '#C9A84C';
+                    btn.style.color = '#0F0F0F';
+                    return;
+                }
+                inp.value = currentLap;
+                document.getElementById('lapDisplay').textContent = currentLap;
+                try { await analyze(); } catch(e) { console.error(e); }
+                setTimeout(() => replayStep(currentLap + 1), 4000);
+            }
+
+            replayStep(startLap);
             socket.emit('toggle_live_timing', {
                 is_playing: true,
-                lap: parseInt(inp ? inp.value : '1') || 1,
-                max_laps: parseInt(inp ? inp.max : '100') || 100
+                lap: startLap,
+                max_laps: maxLap
             });
         }
-    }
+    } 
 
     // ── Init ──────────────────────────────────────────────────────────────
     loadDrivers();

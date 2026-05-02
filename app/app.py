@@ -632,6 +632,55 @@ def calendar():
     except Exception as e:
         return jsonify({'races': [], 'error': str(e)}) 
 
+@app.route('/api/stint_timeline', methods=['POST'])
+def stint_timeline():
+    """Generate detailed stint timeline for focus driver."""
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+    driver_df = df[df['Driver'] == driver]
+
+    if len(driver_df) == 0:
+        return jsonify({'error': 'Driver not found'}), 404
+
+    stints = []
+    for stint_num in sorted(driver_df['Stint'].unique()):
+        stint_df = driver_df[driver_df['Stint'] == stint_num].reset_index(drop=True)
+        if len(stint_df) == 0:
+            continue
+
+        compound = stint_df['Compound'].iloc[0]
+        lap_times = stint_df['LapTime'].tolist()
+        tyre_lives = stint_df['TyreLife'].tolist()
+        avg_time = round(float(stint_df['LapTime'].mean()), 3)
+        min_time = round(float(stint_df['LapTime'].min()), 3)
+        max_time = round(float(stint_df['LapTime'].max()), 3)
+        deg_rate = round(float(
+            (stint_df['LapTime'].iloc[-1] - stint_df['LapTime'].iloc[0]) /
+            max(1, len(stint_df))
+        ), 4)
+
+        stints.append({
+            'stint': int(stint_num),
+            'compound': compound,
+            'laps': len(stint_df),
+            'tyre_life_start': int(tyre_lives[0]),
+            'tyre_life_end': int(tyre_lives[-1]),
+            'avg_lap_time': avg_time,
+            'min_lap_time': min_time,
+            'max_lap_time': max_time,
+            'degradation_rate': deg_rate,
+            'lap_times': [round(t, 3) for t in lap_times],
+            'tyre_lives': [int(t) for t in tyre_lives],
+        })
+
+    return jsonify({'driver': driver, 'stints': stints}) 
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  
