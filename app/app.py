@@ -681,6 +681,95 @@ def stint_timeline():
 
     return jsonify({'driver': driver, 'stints': stints}) 
 
+@app.route('/api/strategic_summary', methods=['POST'])
+def strategic_summary():
+    """Generate a plain-English strategic situation summary."""
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+    pit_lap = int(data.get('pit_lap', 18))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+    driver_df = df[df['Driver'] == driver]
+    current_laps = driver_df[driver_df['LapNumber'] <= at_lap]
+
+    if len(current_laps) == 0:
+        return jsonify({'error': 'No data'}), 404
+
+    current_stint = current_laps['Stint'].iloc[-1]
+    stint_df = current_laps[
+        current_laps['Stint'] == current_stint
+    ].reset_index(drop=True)
+
+    if len(stint_df) < 5:
+        return jsonify({'summary': 'Insufficient data for analysis.'}), 200
+
+    # Get all the data points
+    compound = stint_df['Compound'].iloc[-1]
+    tyre_age = int(stint_df['TyreLife'].iloc[-1])
+    avg_lap = round(float(stint_df['LapTime'].mean()), 3)
+
+    # Cliff prediction
+    best_model = None
+    try:
+        best_model, _, model_tier = get_best_model(race_key, stint_df)
+        cliff_lap, cliff_low, cliff_high, _ = detect_cliff_with_confidence(
+            best_model, stint_df
+        )
+    except Exception:
+        cliff_lap = None
+        cliff_low = None
+        cliff_high = None
+        model_tier = "Generic"
+
+    # Driver profile
+    import json as _json
+    try:
+        with open('results/driver_profiles.json') as f:
+            profiles = _json.load(f)
+        driver_style = profiles.get(driver, {}).get('overall_style', 'AVERAGE')
+        driver_rate = profiles.get(driver, {}).get('overall_rate', 0.0)
+    except Exception:
+        driver_style = 'AVERAGE'
+        driver_rate = 0.0
+
+    # Rival count
+    analysis = analyze_all_drivers(best_model, df, at_lap)
+    high_urgency = len(analysis[analysis['Urgency'] == 'HIGH'])
+    cannot_cover = len(analysis[analysis['LapsToCliff'].isna()])
+
+    # Build summary
+    laps_to_cliff = (cliff_lap - tyre_age) if cliff_lap else None
+
+    urgency_word = "CRITICAL" if laps_to_cliff and laps_to_cliff <= 2 else \
+                   "HIGH" if laps_to_cliff and laps_to_cliff <= 5 else \
+                   "MODERATE" if laps_to_cliff and laps_to_cliff <= 10 else "LOW"
+
+    cliff_str = f"lap {cliff_lap} (±{cliff_high - cliff_low if cliff_high and cliff_low else '?'} laps)" \
+                if cliff_lap else "beyond prediction window"
+
+    style_impact = "will accelerate degradation" if driver_style in ['HARD', 'VERY HARD'] else \
+                   "should extend tyre life" if driver_style in ['GENTLE', 'VERY GENTLE'] else \
+                   "is average for this compound"
+
+    summary = (
+        f"SITUATION [{urgency_word}] — Lap {at_lap} | {driver} | {compound} Age {tyre_age}\n\n"
+        f"Performance cliff predicted at {cliff_str}. "
+        f"At {avg_lap:.1f}s average, this {compound} is "
+        f"{'degrading faster than expected' if driver_rate > 0.01 else 'holding well'}. "
+        f"{driver}'s driving style ({driver_style}) {style_impact}.\n\n"
+        f"FIELD: {high_urgency} rivals at HIGH urgency. "
+        f"Strategic window: pit lap {pit_lap} "
+        f"{'is within the optimal window' if cliff_lap and pit_lap <= cliff_lap else 'may be too late'}.\n\n"
+        f"MODEL: {model_tier}"
+    )
+
+    return jsonify({'summary': summary, 'urgency': urgency_word})
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  

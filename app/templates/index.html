@@ -228,6 +228,14 @@
             📋 Export Notes
         </button>
     </div> 
+    <!-- Strategic Summary -->
+    <div class="card" id="strategicSummaryCard" style="margin-bottom: 24px; display:none;
+         border-left: 3px solid #6B7C3F;">
+        <h2>🧠 Strategic Situation</h2>
+        <pre id="strategicSummaryText" style="font-family: 'Segoe UI', sans-serif;
+             font-size: 0.88rem; color: #F0EDE4; white-space: pre-wrap;
+             line-height: 1.6;"></pre>
+    </div> 
 
     <div class="grid" id="resultsGrid" style="display:none">
         <div class="card">
@@ -581,6 +589,33 @@ Generated: ${new Date().toISOString()}
         document.getElementById('stintTimelineCard').style.display = 'block';
     } 
 
+    async function loadStrategicSummary() {
+        const race = document.getElementById('raceSelect').value;
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+        const pitLap = document.getElementById('pitLapInput').value;
+
+        const res = await fetch('/api/strategic_summary', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race, lap, driver, pit_lap: pitLap})
+        });
+        const data = await res.json();
+        if (!data.summary) return;
+
+        const urgencyColors = {
+            'CRITICAL': '#8B2020',
+            'HIGH': '#cc7722',
+            'MODERATE': '#C9A84C',
+            'LOW': '#6B7C3F'
+        };
+
+        const card = document.getElementById('strategicSummaryCard');
+        card.style.borderLeftColor = urgencyColors[data.urgency] || '#6B7C3F';
+        document.getElementById('strategicSummaryText').textContent = data.summary;
+        card.style.display = 'block';
+    } 
+
     // ── Main Analyze ──────────────────────────────────────────────────────
     async function analyze() {
         const race    = document.getElementById('raceSelect').value;
@@ -597,6 +632,7 @@ Generated: ${new Date().toISOString()}
             document.getElementById('loadingBox').style.display = 'block';
             document.getElementById('errorBox').style.display = 'none';
             document.getElementById('stintTimelineCard').style.display = 'none'; 
+            document.getElementById('strategicSummaryCard').style.display = 'none'; 
         }
         document.getElementById('analyzeBtn').disabled = true;
 
@@ -616,15 +652,29 @@ Generated: ${new Date().toISOString()}
 
             // Tyre table
             document.getElementById('tyreBody').innerHTML =
-                aData.drivers.map(d => `
+                aData.drivers.map(d => {
+                    const cliff = parseFloat(d.PredictedCliff) || 0;
+                    const age = parseFloat(d.TyreLife) || 0;
+                    const pct = cliff > 0 ? Math.min(100, (age / cliff) * 100) : 0;
+                    const barColor = pct > 85 ? '#8B2020' :
+                                    pct > 65 ? '#C9A84C' : '#6B7C3F';
+                    return `
                     <tr>
                         <td><strong>${d.Driver}</strong></td>
                         <td><span class="compound-${d.Compound}">${d.Compound}</span></td>
-                        <td>${d.TyreLife}</td>
+                        <td>
+                            ${d.TyreLife}
+                            <div style="width:50px; height:4px; background:#2a2a2a;
+                                 border-radius:2px; margin-top:3px; display:inline-block;">
+                                <div style="width:${pct}%; height:100%;
+                                     background:${barColor}; border-radius:2px;"></div>
+                            </div>
+                        </td>
                         <td>${d.AvgLapTime}s</td>
                         <td>${d.PredictedCliff}</td>
                         <td><span class="urgency-${d.Urgency}">${d.Urgency}</span></td>
-                    </tr>`).join('');
+                    </tr>`;
+                }).join(''); 
 
             // Rival table
             const rivalBody = document.getElementById('rivalBody');
@@ -666,6 +716,7 @@ Generated: ${new Date().toISOString()}
             try { await loadUndercut(); }      catch(e){ console.error('Undercut',e); }
             try { await loadDriverProfile(); } catch(e){ console.error('Profile',e); }
             try { await loadStintTimeline(); } catch(e){ console.error('Timeline',e); } 
+            try { await loadStrategicSummary(); } catch(e){ console.error('Summary',e); } 
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
