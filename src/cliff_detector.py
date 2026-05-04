@@ -5,7 +5,15 @@ from src.model import TyreLSTM
 from src.dataset import COMPOUND_MAP, normalize, denormalize, LAP_TIME_MIN, LAP_TIME_MAX, TYRE_LIFE_MIN, TYRE_LIFE_MAX, SECTOR_MIN, SECTOR_MAX
 from src.thermal_model import calculate_thermal_energy
 
-CLIFF_THRESHOLD = 1.5
+CLIFF_THRESHOLDS = {
+    'SOFT': 1.0,    # Softs cliff sharply and suddenly
+    'MEDIUM': 1.5,  # Medium baseline
+    'HARD': 2.0,    # Hards degrade slowly, need larger threshold
+}
+DEFAULT_CLIFF_THRESHOLD = 1.5
+
+def get_cliff_threshold(compound):
+    return CLIFF_THRESHOLDS.get(compound, DEFAULT_CLIFF_THRESHOLD) 
 
 
 def prepare_sequence(model, stint_df, sequence_length=8):
@@ -94,7 +102,8 @@ def predict_future_laps(model, current_sequence, n_future=20):
 
 def detect_cliff_with_confidence(base_model, stint_df, n_future=20, n_samples=10, track_name=None):
     """Monte Carlo dropout cliff detection with smart model routing."""
-    compound = stint_df['Compound'].iloc[-1]
+    compound = stint_df['Compound'].iloc[-1] if 'Compound' in stint_df.columns else 'MEDIUM'
+    threshold = get_cliff_threshold(compound)
 
     if track_name is None and 'Event' in stint_df.columns:
         track_name = stint_df['Event'].iloc[0]
@@ -124,7 +133,7 @@ def detect_cliff_with_confidence(base_model, stint_df, n_future=20, n_samples=10
             all_predictions.append(future_seconds)
 
             for i, lap_time in enumerate(future_seconds):
-                if lap_time > current_avg + CLIFF_THRESHOLD:
+                if lap_time > current_avg + threshold:
                     cliff_laps.append(current_lap + i + 1)
                     break
 

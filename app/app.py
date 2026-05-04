@@ -770,6 +770,91 @@ def strategic_summary():
 
     return jsonify({'summary': summary, 'urgency': urgency_word})
 
+@app.route('/api/gap_tracker', methods=['POST'])
+def gap_tracker():
+    """Track gaps to cars ahead and behind with degradation-adjusted projections."""
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+
+    # Get all drivers average lap times at this point
+    driver_times = {}
+    for d in df['Driver'].unique():
+        d_laps = df[(df['Driver'] == d) & (df['LapNumber'] <= at_lap)]
+        if len(d_laps) >= 3:
+            driver_times[d] = float(d_laps['LapTime'].tail(5).mean())
+
+    if driver not in driver_times:
+        return jsonify({'error': 'Driver not found'}), 404
+
+    # Sort by lap time (proxy for position — faster = further ahead)
+    sorted_drivers = sorted(driver_times.items(), key=lambda x: x[1])
+    driver_pos = next((i for i, (d, _) in enumerate(sorted_drivers) if d == driver), None)
+
+    if driver_pos is None:
+        return jsonify({'error': 'Position not found'}), 404
+
+    our_pace = driver_times[driver]
+
+    # Car ahead and behind
+    ahead = sorted_drivers[driver_pos - 1] if driver_pos > 0 else None
+    behind = sorted_drivers[driver_pos + 1] if driver_pos < len(sorted_drivers) - 1 else None
+
+    # Project gap evolution over next 10 laps using degradation rates
+    def project_gap(rival_driver, rival_pace, n_laps=10):
+        our_df = df[(df['Driver'] == driver) & (df['LapNumber'] <= at_lap)]
+        rival_df = df[(df['Driver'] == rival_driver) & (df['LapNumber'] <= at_lap)]
+
+        if len(our_df) < 5 or len(rival_df) < 5:
+            return []
+
+        # Simple degradation rate from last 5 laps
+        our_rate = float(our_df['LapTime'].diff().tail(5).mean())
+        rival_rate = float(rival_df['LapTime'].diff().tail(5).mean())
+
+        gap = round(abs(rival_pace - our_pace), 3)
+        evolution = [gap]
+
+        for lap in range(1, n_laps + 1):
+            our_time = our_pace + our_rate * lap
+            rival_time = rival_pace + rival_rate * lap
+            new_gap = round(rival_time - our_time, 3)
+            evolution.append(new_gap)
+
+        return evolution
+
+    result = {
+        'driver': driver,
+        'position': driver_pos + 1,
+        'our_pace': round(our_pace, 3),
+        'ahead': None,
+        'behind': None,
+    }
+
+    if ahead:
+        result['ahead'] = {
+            'driver': ahead[0],
+            'current_gap': round(ahead[1] - our_pace, 3),
+            'gap_evolution': project_gap(ahead[0], ahead[1]),
+            'closing': (ahead[1] - our_pace) > 0
+        }
+
+    if behind:
+        result['behind'] = {
+            'driver': behind[0],
+            'current_gap': round(our_pace - behind[1], 3),
+            'gap_evolution': project_gap(behind[0], behind[1]),
+            'under_threat': (our_pace - behind[1]) < 0.3
+        }
+
+    return jsonify(result) 
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  

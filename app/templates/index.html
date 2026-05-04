@@ -236,6 +236,29 @@
              font-size: 0.88rem; color: #F0EDE4; white-space: pre-wrap;
              line-height: 1.6;"></pre>
     </div> 
+    <!-- Gap Tracker -->
+    <div class="card" id="gapTrackerCard" style="margin-bottom: 24px; display:none">
+        <h2>📡 Gap Tracker — <span id="gapTrackerDriver"></span>
+            <span style="color:#888; font-size:0.8rem; font-weight:400; 
+                  text-transform:none; letter-spacing:0;">
+                P<span id="gapTrackerPos"></span>
+            </span>
+        </h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+            <div id="gapAhead" style="padding:16px; background:#252525; border-radius:8px;
+                 border-top: 2px solid #6B7C3F;">
+                <div style="color:#6B7C3F; font-size:0.75rem; text-transform:uppercase;
+                     letter-spacing:1px; margin-bottom:8px;">Car Ahead</div>
+                <div id="gapAheadContent" style="color:#888;">No data</div>
+            </div>
+            <div id="gapBehind" style="padding:16px; background:#252525; border-radius:8px;
+                 border-top: 2px solid #8B2020;">
+                <div style="color:#8B2020; font-size:0.75rem; text-transform:uppercase;
+                     letter-spacing:1px; margin-bottom:8px;">Car Behind</div>
+                <div id="gapBehindContent" style="color:#888;">No data</div>
+            </div>
+        </div>
+    </div> 
 
     <div class="grid" id="resultsGrid" style="display:none">
         <div class="card">
@@ -616,6 +639,56 @@ Generated: ${new Date().toISOString()}
         card.style.display = 'block';
     } 
 
+    async function loadGapTracker() {
+        const race = document.getElementById('raceSelect').value;
+        const lap = document.getElementById('lapInput').value;
+        const driver = document.getElementById('driverSelect').value;
+
+        const res = await fetch('/api/gap_tracker', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({race, lap, driver})
+        });
+        const data = await res.json();
+        if (data.error) return;
+
+        document.getElementById('gapTrackerDriver').textContent = driver;
+        document.getElementById('gapTrackerPos').textContent = data.position;
+
+        if (data.ahead) {
+            const trend = data.ahead.closing ? '📈 Closing' : '📉 Falling back';
+            const gapColor = data.ahead.closing ? '#6B7C3F' : '#8B2020';
+            document.getElementById('gapAheadContent').innerHTML = `
+                <div style="font-size:1.1rem; font-weight:700; color:#F0EDE4;">
+                    ${data.ahead.driver}
+                </div>
+                <div style="color:${gapColor}; font-size:0.9rem; margin-top:4px;">
+                    ${data.ahead.current_gap > 0 ? '+' : ''}${data.ahead.current_gap}s
+                    &nbsp;${trend}
+                </div>
+                <div style="color:#555; font-size:0.78rem; margin-top:6px;">
+                    10-lap projection: ${data.ahead.gap_evolution.slice(-1)[0]}s
+                </div>`;
+        }
+
+        if (data.behind) {
+            const threat = data.behind.under_threat ? '⚠️ Under threat' : '✅ Safe';
+            const threatColor = data.behind.under_threat ? '#8B2020' : '#6B7C3F';
+            document.getElementById('gapBehindContent').innerHTML = `
+                <div style="font-size:1.1rem; font-weight:700; color:#F0EDE4;">
+                    ${data.behind.driver}
+                </div>
+                <div style="color:${threatColor}; font-size:0.9rem; margin-top:4px;">
+                    ${data.behind.current_gap}s behind &nbsp;${threat}
+                </div>
+                <div style="color:#555; font-size:0.78rem; margin-top:6px;">
+                    10-lap projection: ${data.behind.gap_evolution.slice(-1)[0]}s
+                </div>`;
+        }
+
+        document.getElementById('gapTrackerCard').style.display = 'block';
+    } 
+
     // ── Main Analyze ──────────────────────────────────────────────────────
     async function analyze() {
         const race    = document.getElementById('raceSelect').value;
@@ -633,6 +706,7 @@ Generated: ${new Date().toISOString()}
             document.getElementById('errorBox').style.display = 'none';
             document.getElementById('stintTimelineCard').style.display = 'none'; 
             document.getElementById('strategicSummaryCard').style.display = 'none'; 
+            document.getElementById('gapTrackerCard').style.display = 'none'; 
         }
         document.getElementById('analyzeBtn').disabled = true;
 
@@ -717,6 +791,7 @@ Generated: ${new Date().toISOString()}
             try { await loadDriverProfile(); } catch(e){ console.error('Profile',e); }
             try { await loadStintTimeline(); } catch(e){ console.error('Timeline',e); } 
             try { await loadStrategicSummary(); } catch(e){ console.error('Summary',e); } 
+            try { await loadGapTracker(); } catch(e){ console.error('Gap',e); } 
 
         } catch(err) {
             document.getElementById('errorBox').style.display = 'block';
