@@ -855,6 +855,310 @@ def gap_tracker():
 
     return jsonify(result) 
 
+@app.route('/api/recommendation', methods=['POST'])
+def strategy_recommendation():
+    """
+    Concrete strategic recommendation — the single most valuable output.
+    PIT NOW / PIT IN N LAPS / STAY OUT / COVER / DEFEND
+    """
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+    pit_lap = int(data.get('pit_lap', 18))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+    driver_df = df[df['Driver'] == driver]
+    current_laps = driver_df[driver_df['LapNumber'] <= at_lap]
+
+    if len(current_laps) == 0:
+        return jsonify({'error': 'No data'}), 404
+
+    current_stint = current_laps['Stint'].iloc[-1]
+    stint_df = current_laps[
+        current_laps['Stint'] == current_stint
+    ].reset_index(drop=True)
+
+    if len(stint_df) < 5:
+        return jsonify({'recommendation': 'INSUFFICIENT DATA',
+                       'confidence': 0, 'reasoning': []}), 200
+
+    compound = stint_df['Compound'].iloc[-1]
+    tyre_age = int(stint_df['TyreLife'].iloc[-1])
+
+    # Get cliff prediction
+    try:
+        best_model, _, model_tier = get_best_model(race_key, stint_df)
+        cliff_lap, cliff_low, cliff_high, _ = detect_cliff_with_confidence(
+            best_model, stint_df
+        )
+    except Exception:
+        cliff_lap = None
+        cliff_low = None
+        cliff_high = None
+
+    # Get rival analysis
+    try:
+        analysis = analyze_all_drivers(best_model, df, at_lap) # type: ignore
+        high_urgency_rivals = analysis[
+            (analysis['Urgency'] == 'HIGH') &
+            (analysis['Driver'] != driver)
+        ]
+        rivals_more_urgent = len(high_urgency_rivals)
+    except Exception:
+        rivals_more_urgent = 0
+
+    # Decision logic
+    laps_to_cliff = (cliff_lap - tyre_age) if cliff_lap else 99
+    reasoning = []
+    confidence = 0
+
+    if laps_to_cliff <= 1:
+        recommendation = "🔴 PIT NOW"
+        confidence = 95
+        reasoning.append(f"Performance cliff imminent — tyre age {tyre_age}, cliff at lap {cliff_lap}")
+        reasoning.append(f"Every lap you stay out risks a catastrophic lap time loss")
+
+    elif laps_to_cliff <= 3:
+        recommendation = f"🟡 PIT IN {laps_to_cliff} LAPS"
+        confidence = 85
+        reasoning.append(f"Cliff predicted at lap {cliff_lap} (±{(cliff_high or 0) - (cliff_low or 0)} laps)")
+        reasoning.append(f"Window is closing — prepare pit crew now")
+        if rivals_more_urgent > 2:
+            reasoning.append(f"{rivals_more_urgent} rivals also approaching cliff — pit stop traffic risk")
+
+    elif rivals_more_urgent >= 3 and laps_to_cliff > 5:
+        recommendation = "🟢 STAY OUT — RIVALS MORE URGENT"
+        confidence = 75
+        reasoning.append(f"Your cliff is {laps_to_cliff} laps away")
+        reasoning.append(f"{rivals_more_urgent} rivals at HIGH urgency — let them pit first")
+        reasoning.append("Track position gain possible if you extend")
+
+    elif laps_to_cliff <= 6:
+        recommendation = f"🟠 PREPARE PIT — LAP {cliff_lap}"
+        confidence = 70
+        reasoning.append(f"Approaching cliff window — {laps_to_cliff} laps remaining")
+        reasoning.append(f"Optimal pit window opens now")
+        if cliff_high and cliff_low:
+            reasoning.append(f"Cliff confidence range: lap {cliff_low}–{cliff_high}")
+
+    else:
+        recommendation = "🟢 STAY OUT"
+        confidence = 80
+        reasoning.append(f"Tyre has {laps_to_cliff} laps before cliff")
+        reasoning.append(f"{compound} compound performing within expected range")
+        if rivals_more_urgent > 0:
+            reasoning.append(f"Monitor {rivals_more_urgent} rivals approaching their windows")
+
+    return jsonify({
+        'recommendation': recommendation,
+        'confidence': confidence,
+        'reasoning': reasoning,
+        'cliff_lap': cliff_lap,
+        'laps_to_cliff': laps_to_cliff if laps_to_cliff < 99 else None,
+        'rivals_urgent': rivals_more_urgent,
+        'model_tier': model_tier if 'model_tier' in dir() else 'Generic' # type: ignore
+    })
+
+@app.route('/api/compound_comparison', methods=['POST'])
+def compound_comparison():
+    """
+    Compare predicted degradation curves for all three compounds
+    at the current track. Answers: what if we switch compound now?
+    """
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+    driver_df = df[df['Driver'] == driver]
+    current_laps = driver_df[driver_df['LapNumber'] <= at_lap]
+
+    if len(current_laps) == 0:
+        return jsonify({'error': 'No data'}), 404
+
+    current_stint = current_laps['Stint'].iloc[-1]
+    stint_df = current_laps[
+        current_laps['Stint'] == current_stint
+    ].reset_index(drop=True)
+
+    if len(stint_df) < 5:
+        return jsonify({'error': 'Not enough data'}), 400
+
+    n_future = 25
+    results = {}
+
+    for compound in ['SOFT', 'MEDIUM', 'HARD']:
+        try:
+            comp_model = compound_models.get(compound, main_model)
+            # Build a synthetic stint starting fresh on this compound
+            synthetic = stint_df.copy()
+            synthetic['Compound'] = compound
+            synthetic['TyreLife'] = range(1, len(synthetic) + 1)
+
+            from src.cliff_detector import prepare_sequence, predict_future_laps
+            from src.dataset import denormalize, LAP_TIME_MIN, LAP_TIME_MAX
+            from src.thermal_model import calculate_thermal_energy
+
+            seq = prepare_sequence(comp_model, synthetic)
+            preds = predict_future_laps(comp_model, seq, n_future)
+            pred_seconds = [
+                round(denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX), 3)
+                for p in preds
+            ]
+
+            # Find cliff for this compound
+            avg = float(synthetic['LapTime'].mean())
+            from src.cliff_detector import get_cliff_threshold
+            threshold = get_cliff_threshold(compound)
+            cliff = None
+            for i, t in enumerate(pred_seconds):
+                if t > avg + threshold:
+                    cliff = i + 1
+                    break
+
+            results[compound] = {
+                'predictions': pred_seconds,
+                'cliff_lap': cliff,
+                'avg_fresh_pace': round(avg, 3)
+            }
+        except Exception as e:
+            results[compound] = {'error': str(e)}
+
+    current_lap_num = int(stint_df['TyreLife'].max())
+    future_laps = list(range(current_lap_num + 1,
+                             current_lap_num + n_future + 1))
+
+    return jsonify({
+        'future_laps': future_laps,
+        'compounds': results,
+        'current_compound': stint_df['Compound'].iloc[-1],
+        'current_tyre_age': current_lap_num
+    }) 
+
+@app.route('/api/compound_comparison_chart', methods=['POST'])
+def compound_comparison_chart():
+    """Generate compound comparison chart as base64 image."""
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+
+    # Get comparison data
+    from flask import current_app
+    with current_app.test_request_context():
+        pass
+
+    df = load_race_data(race_key)
+    driver_df = df[df['Driver'] == driver]
+    current_laps = driver_df[driver_df['LapNumber'] <= at_lap]
+
+    if len(current_laps) == 0:
+        return jsonify({'error': 'No data'}), 404
+
+    current_stint = current_laps['Stint'].iloc[-1]
+    stint_df = current_laps[
+        current_laps['Stint'] == current_stint
+    ].reset_index(drop=True)
+
+    if len(stint_df) < 5:
+        return jsonify({'error': 'Not enough data'}), 400
+
+    n_future = 25
+    current_lap_num = int(stint_df['TyreLife'].max())
+    future_laps = list(range(current_lap_num + 1,
+                             current_lap_num + n_future + 1))
+
+    compound_colors = {
+        'SOFT': '#8B2020',
+        'MEDIUM': '#C9A84C',
+        'HARD': '#555555'
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 5), facecolor='#1E1E1E')
+    ax.set_facecolor('#1E1E1E')
+    ax.tick_params(colors='#F0EDE4')
+    ax.xaxis.label.set_color('#F0EDE4')
+    ax.yaxis.label.set_color('#F0EDE4')
+    ax.title.set_color('#C9A84C')
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#3a3a3a')
+
+    # Plot actual laps
+    actual_laps = stint_df['TyreLife'].tolist()
+    ax.plot(actual_laps, stint_df['LapTime'],
+            color='#F0EDE4', linewidth=2, label='Actual', zorder=5)
+
+    summary_data = {}
+
+    for compound in ['SOFT', 'MEDIUM', 'HARD']:
+        try:
+            comp_model = compound_models.get(compound, main_model)
+            synthetic = stint_df.copy()
+            synthetic['Compound'] = compound
+            synthetic['TyreLife'] = range(1, len(synthetic) + 1)
+
+            from src.cliff_detector import (prepare_sequence,
+                                            predict_future_laps,
+                                            get_cliff_threshold)
+            from src.dataset import denormalize, LAP_TIME_MIN, LAP_TIME_MAX
+
+            seq = prepare_sequence(comp_model, synthetic)
+            preds = predict_future_laps(comp_model, seq, n_future)
+            pred_seconds = [denormalize(p, LAP_TIME_MIN, LAP_TIME_MAX)
+                           for p in preds]
+
+            avg = float(stint_df['LapTime'].mean())
+            threshold = get_cliff_threshold(compound)
+            cliff = None
+            for i, t in enumerate(pred_seconds):
+                if t > avg + threshold:
+                    cliff = current_lap_num + i + 1
+                    break
+
+            color = compound_colors[compound]
+            label = f"{compound}"
+            if cliff:
+                label += f" (cliff ~lap {cliff})"
+
+            ax.plot(future_laps[:len(pred_seconds)], pred_seconds,
+                   color=color, linewidth=2, linestyle='--',
+                   label=label, alpha=0.9)
+
+            if cliff:
+                ax.axvline(x=cliff, color=color, linewidth=1,
+                          linestyle=':', alpha=0.6)
+
+            summary_data[compound] = {
+                'cliff': cliff,
+                'avg_pace': round(float(np.mean(pred_seconds[:10])), 3)
+            }
+
+        except Exception:
+            pass
+
+    ax.set_xlabel('Tyre Life (laps)')
+    ax.set_ylabel('Lap Time (s)')
+    ax.set_title(f'{driver} — Compound Switch Analysis from Lap {at_lap}')
+    ax.legend(fontsize=8, facecolor='#2a2a2a', labelcolor='#F0EDE4')
+    ax.grid(True, alpha=0.15)
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', facecolor='#1E1E1E', bbox_inches='tight')
+    buf.seek(0)
+    img_base64 = base64.b64encode(buf.read()).decode('utf-8')
+    plt.close()
+
+    return jsonify({'chart': img_base64, 'summary': summary_data}) 
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  
