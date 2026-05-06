@@ -1159,6 +1159,169 @@ def compound_comparison_chart():
 
     return jsonify({'chart': img_base64, 'summary': summary_data}) 
 
+@app.route('/api/historical_context', methods=['POST'])
+def historical_context():
+    """
+    Show how this driver performed at this track in previous years.
+    Real strategy engineers use historical context constantly.
+    """
+    data = request.json
+    race_key = data.get('race')
+    driver = data.get('driver')
+    at_lap = int(data.get('lap', 15))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    # Extract track name from race key
+    track_name = '_'.join(race_key.split('_')[1:])
+    current_year = int(race_key.split('_')[0])
+
+    import glob as _glob
+    # Find all races at this track across all years
+    track_files = [
+        f for f in _glob.glob('data/*.csv')
+        if track_name.lower() in f.lower()
+        and str(current_year) not in f
+    ]
+
+    historical = []
+
+    for filepath in sorted(track_files):
+        year = int(os.path.basename(filepath).split('_')[0])
+        df_hist = pd.read_csv(filepath)
+
+        driver_hist = df_hist[df_hist['Driver'] == driver]
+        if len(driver_hist) == 0:
+            continue
+
+        # Get lap times around the same lap window
+        window = driver_hist[
+            (driver_hist['LapNumber'] >= at_lap - 3) &
+            (driver_hist['LapNumber'] <= at_lap + 3)
+        ]
+
+        if len(window) == 0:
+            continue
+
+        avg_pace = round(float(window['LapTime'].mean()), 3)
+        compound = window['Compound'].mode().iloc[0] if len(window) > 0 else 'UNKNOWN'
+        tyre_age = round(float(window['TyreLife'].mean()), 1)
+
+        # Full stint degradation rate
+        all_stints = driver_hist.groupby('Stint')
+        best_stint_rate = None
+        for _, stint in all_stints:
+            if len(stint) >= 5:
+                rate = float(stint['LapTime'].diff().mean())
+                if best_stint_rate is None or abs(rate) < abs(best_stint_rate):
+                    best_stint_rate = round(rate, 4)
+
+        historical.append({
+            'year': year,
+            'avg_pace_lap_window': avg_pace,
+            'compound': compound,
+            'avg_tyre_age': tyre_age,
+            'degradation_rate': best_stint_rate,
+            'total_laps': len(driver_hist)
+        })
+
+    # Current year data for comparison
+    df_current = load_race_data(race_key)
+    current_driver = df_current[
+        (df_current['Driver'] == driver) &
+        (df_current['LapNumber'] <= at_lap)
+    ]
+    current_pace = round(float(
+        current_driver['LapTime'].tail(5).mean()
+    ), 3) if len(current_driver) >= 5 else None
+
+    return jsonify({
+        'driver': driver,
+        'track': track_name.replace('_', ' '),
+        'current_year': current_year,
+        'current_lap': at_lap,
+        'current_pace': current_pace,
+        'historical': historical
+    }) 
+
+@app.route('/api/field_overview', methods=['POST'])
+def field_overview():
+    """
+    Full-field strategy overview — all drivers, one view.
+    This is what a race engineer actually looks at during a race.
+    """
+    data = request.json
+    race_key = data.get('race')
+    at_lap = int(data.get('lap', 15))
+
+    if race_key not in RACES:
+        return jsonify({'error': 'Race not found'}), 404
+
+    df = load_race_data(race_key)
+
+    results = []
+    for driver in sorted(df['Driver'].unique()):
+        driver_df = df[df['Driver'] == driver]
+        current = driver_df[driver_df['LapNumber'] <= at_lap]
+        if len(current) == 0:
+            continue
+
+        current_stint = current['Stint'].iloc[-1]
+        stint_df = current[
+            current['Stint'] == current_stint
+        ].reset_index(drop=True)
+
+        if len(stint_df) < 3:
+            continue
+
+        compound = stint_df['Compound'].iloc[-1]
+        tyre_age = int(stint_df['TyreLife'].iloc[-1])
+        avg_pace = round(float(stint_df['LapTime'].tail(3).mean()), 3)
+
+        # Quick cliff estimate
+        try:
+            best_model, _, _ = get_best_model(race_key, stint_df)
+            cliff_lap, _, _, _ = detect_cliff_with_confidence(
+                best_model, stint_df, n_samples=5
+            )
+        except Exception:
+            cliff_lap = None
+
+        laps_to_cliff = (cliff_lap - tyre_age) if cliff_lap else None
+
+        urgency = 'HIGH' if laps_to_cliff and laps_to_cliff <= 3 else \
+                  'MEDIUM' if laps_to_cliff and laps_to_cliff <= 8 else 'LOW'
+
+        # Quick recommendation
+        if laps_to_cliff and laps_to_cliff <= 1:
+            rec = '🔴 PIT NOW'
+        elif laps_to_cliff and laps_to_cliff <= 3:
+            rec = f'🟡 PIT IN {laps_to_cliff}'
+        elif laps_to_cliff and laps_to_cliff <= 8:
+            rec = '🟠 PREPARE'
+        else:
+            rec = '🟢 STAY'
+
+        results.append({
+            'Driver': driver,
+            'Compound': compound,
+            'TyreAge': tyre_age,
+            'AvgPace': avg_pace,
+            'CliffLap': cliff_lap,
+            'LapsToCliff': laps_to_cliff,
+            'Urgency': urgency,
+            'Recommendation': rec
+        })
+
+    # Sort by urgency then tyre age
+    urgency_order = {'HIGH': 0, 'MEDIUM': 1, 'LOW': 2}
+    results.sort(key=lambda x: (
+        urgency_order.get(x['Urgency'], 3), -(x['TyreAge'])
+    ))
+
+    return jsonify({'drivers': results, 'lap': at_lap}) 
+
 if __name__ == '__main__':
     # We now run socketio.run instead of app.run to enable WebSockets
     socketio.run(app, debug=True, use_reloader=False, port=5000)  
