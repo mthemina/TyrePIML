@@ -758,7 +758,7 @@ Generated: ${new Date().toISOString()}
         document.getElementById('recommendationMeta').innerHTML =
             `Cliff: lap ${data.cliff_lap || 'N/A'} &nbsp;|&nbsp; 
              ${data.laps_to_cliff ? data.laps_to_cliff + ' laps away' : 'Beyond window'} &nbsp;|&nbsp;
-             ${data.rivals_urgent} rivals urgent &nbsp;|&nbsp;
+             ${data.rivals_urgent ?? 0} rivals urgent &nbsp;|&nbsp;
              <span style="color:#6B7C3F">${data.model_tier}</span>`;
 
         document.getElementById('recommendationCard').style.display = 'block';
